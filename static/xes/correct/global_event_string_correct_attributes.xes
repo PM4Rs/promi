@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- XES test file for promi -->
+<!-- promi is available at https://crates.io/crates/promi -->
+<log xes.version="1849.2016" xes.features="">
+	<extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext" />
+	<global scope="event">
+		<string key="concept:name" value="fnord" />
+	</global>
+</log>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- XES test file for promi -->
+<!-- promi is available at https://crates.io/crates/promi -->
+<log xes.version="1849.2016" xes.features="nested-attributes">
+	<list key="list">
+		<values />
+		<string key="key" value="value" />
+	</list>
+</log>

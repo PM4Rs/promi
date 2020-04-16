@@ -1,5 +1,2 @@
-/target
-/venv
-/.idea
-
+.idea
 Cargo.lock

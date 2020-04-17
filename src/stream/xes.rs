@@ -740,7 +740,6 @@ mod tests {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
             let f = io::BufReader::new(fs::File::open(&p.path()).unwrap());
             let mut buffer = Buffer::default();
-            let mut snapshots: Vec<Vec<u8>> = Vec::new();
 
             buffer.consume(&mut XesReader::from(f)).unwrap();
 
@@ -803,17 +802,5 @@ mod tests {
     fn test_serialize_semantics() {
         serde_loop_dir(expand_static(&["xes", "correct"]));
         serde_loop_dir(expand_static(&["xes", "recoverable"]));
-    }
-
-    // Validate correct XES. Must not fail.
-    #[test]
-    fn test_validate_correct() {
-        unimplemented!()
-    }
-
-    // Validate incorrect XES. Must fail.
-    #[test]
-    fn test_validate_non_validating() {
-        unimplemented!()
     }
 }

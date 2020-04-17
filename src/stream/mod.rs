@@ -256,14 +256,4 @@ mod tests {
 
         assert_eq!(buffer.len(), 0);
     }
-
-    #[test]
-    fn test_stream_meta() {
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_observer() {
-        unimplemented!();
-    }
 }

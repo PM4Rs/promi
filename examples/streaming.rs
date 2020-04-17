@@ -1,6 +1,6 @@
 use promi::stream::{buffer, stats, xes, StreamSink};
-use promi::Log;
 use promi::util::expand_static;
+use promi::Log;
 use std::fs;
 use std::io;
 use std::path;

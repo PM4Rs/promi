@@ -7,4 +7,4 @@
 
 // local
 
-pub struct Filter { /* TODO to be implemented */ }
+pub struct Filter {/* TODO to be implemented */}

@@ -63,7 +63,6 @@ pub enum StreamState {
     Event,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct StreamMeta {
     state: StreamState,

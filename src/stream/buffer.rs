@@ -11,7 +11,7 @@ use std::path::Path;
 // third party
 
 // local
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::stream::xes::XesReader;
 use crate::stream::{ResOpt, Stream, StreamSink};
 
@@ -38,7 +38,7 @@ impl Clone for Buffer {
             match e {
                 Ok(Some(v)) => other.push(Ok(Some(v.clone()))),
                 Ok(None) => other.push(Ok(None)),
-                Err(e) => other.push(Err(Error::StreamError(format!("{:?}", e))))
+                Err(e) => other.push(Err(Error::StreamError(format!("{:?}", e)))),
             }
         }
 

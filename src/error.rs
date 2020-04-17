@@ -46,7 +46,7 @@ pub enum Error {
     ParseDateTimeError(#[from] chrono::ParseError),
 
     #[error("{0}")]
-    XesError(String)
+    XesError(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

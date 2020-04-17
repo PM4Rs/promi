@@ -71,7 +71,7 @@ pub enum AttributeType {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Event,
-    Trace
+    Trace,
 }
 
 impl TryFrom<Option<String>> for Scope {
@@ -82,7 +82,7 @@ impl TryFrom<Option<String>> for Scope {
             match s.as_str() {
                 "trace" => Ok(Scope::Trace),
                 "event" => Ok(Scope::Event),
-                other=> Err(Self::Error::XesError(format!("Invalid scope: {:?}", other)))
+                other => Err(Self::Error::XesError(format!("Invalid scope: {:?}", other))),
             }
         } else {
             Ok(Scope::Event)
@@ -273,12 +273,11 @@ impl StreamSink for Log {
     }
 }
 
-
 /// Useful functions that may panic and are intended for developing promi.
 ///
 pub mod util {
-    use std::io;
     use std::fs;
+    use std::io;
     use std::path::{Path, PathBuf};
 
     /// Access assets
@@ -300,7 +299,7 @@ pub mod util {
     /// Open a file as `io::BufReader`
     pub fn open_buffered(path: &Path) -> io::BufReader<fs::File> {
         io::BufReader::new(
-            fs::File::open(&path).expect(format!("No such file {:?}", &path).as_str())
+            fs::File::open(&path).expect(format!("No such file {:?}", &path).as_str()),
         )
     }
 }

@@ -7,4 +7,4 @@
 
 // local
 
-pub struct XesExtension { /* TODO to be implemented */ }
+pub struct XesExtension {/* TODO to be implemented */}

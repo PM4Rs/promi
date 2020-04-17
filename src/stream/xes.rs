@@ -73,7 +73,9 @@ use quick_xml::{Reader as QxReader, Writer as QxWriter};
 use crate::error::{Error, Result};
 use crate::stream::xml_util::{validate_name, validate_ncname, validate_token, validate_uri};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
-use crate::{Scope, Attribute, AttributeType, Classifier, DateTime, Event, Extension, Global, Log, Trace};
+use crate::{
+    Attribute, AttributeType, Classifier, DateTime, Event, Extension, Global, Log, Scope, Trace,
+};
 
 fn parse_bool(string: &str) -> Result<bool> {
     match string {
@@ -260,7 +262,7 @@ impl Global {
 
         match self.scope {
             Scope::Event => event.push_attribute(("scope", "event")),
-            Scope::Trace => event.push_attribute(("scope", "trace"))
+            Scope::Trace => event.push_attribute(("scope", "trace")),
         }
 
         bytes += writer.write_event(QxEvent::Start(event))?;
@@ -295,7 +297,7 @@ impl Classifier {
         event.push_attribute(("name", validate_ncname(self.name.as_str())?));
         match self.scope {
             Scope::Event => event.push_attribute(("scope", "event")),
-            Scope::Trace => event.push_attribute(("scope", "trace"))
+            Scope::Trace => event.push_attribute(("scope", "trace")),
         }
         event.push_attribute(("keys", validate_token(self.keys.as_str())?));
 
@@ -428,7 +430,10 @@ impl TryFrom<XesIntermediate> for XesElement {
             "event" => Ok(XesElement::Event(Event::try_from(intermediate)?)),
             "trace" => Ok(XesElement::Trace(Trace::try_from(intermediate)?)),
             "log" => Ok(XesElement::Log(Log::try_from(intermediate)?)),
-            other => Err(Error::XesError(format!("unexpected XES element: {:?}", other))),
+            other => Err(Error::XesError(format!(
+                "unexpected XES element: {:?}",
+                other
+            ))),
         }
     }
 }
@@ -659,19 +664,19 @@ impl<W: io::Write> XesWriter<W> {
     }
 }
 
-pub struct XesValidator { /* TODO to be implemented */ }
+pub struct XesValidator {/* TODO to be implemented */}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::consume;
     use crate::stream::buffer::Buffer;
+    use crate::stream::consume;
     use crate::util::{expand_static, open_buffered};
+    use std::fs;
     use std::io;
     use std::io::Write;
-    use std::fs;
     use std::path::{Path, PathBuf};
-    use std::process::{Command, Stdio, Output};
+    use std::process::{Command, Output, Stdio};
     use thiserror::private::PathAsDisplay;
 
     #[test]
@@ -698,7 +703,11 @@ mod tests {
             } else {
                 assert!(
                     result.is_ok(),
-                    format!("parsing {:?} unexpectedly failed: {:?}", p.path(), result.err())
+                    format!(
+                        "parsing {:?} unexpectedly failed: {:?}",
+                        p.path(),
+                        result.err()
+                    )
                 );
             }
         }
@@ -737,7 +746,8 @@ mod tests {
             .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn().unwrap();
+            .spawn()
+            .unwrap();
 
         child.stdin.as_mut().unwrap().write_all(xes).unwrap();
         child.wait_with_output().unwrap()

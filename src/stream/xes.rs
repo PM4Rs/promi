@@ -497,6 +497,12 @@ impl<R: io::BufRead> From<R> for XesReader<R> {
     }
 }
 
+// impl<R: io::Read> From<R> for XesReader<io::BufReader<R>> {
+//     fn from(reader: R) -> Self {
+//         XesReader::new(io::BufReader::new(reader))
+//     }
+// }
+
 impl<T: io::BufRead> Stream for XesReader<T> {
     fn next_element(&mut self) -> ResOpt {
         let mut top_level_element: Option<XesElement> = None;
@@ -660,12 +666,13 @@ mod tests {
     use super::*;
     use crate::stream::consume;
     use crate::stream::buffer::Buffer;
-    use crate::util::expand_static;
+    use crate::util::{expand_static, open_buffered};
     use std::io;
     use std::io::Write;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio, Output};
+    use thiserror::private::PathAsDisplay;
 
     #[test]
     fn test_parse_bool() {
@@ -679,7 +686,7 @@ mod tests {
 
     fn deserialize_dir(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = io::BufReader::new(fs::File::open(&p.path()).unwrap());
+            let f = open_buffered(&p.path());
             let mut reader = XesReader::from(f);
             let result = consume(&mut reader);
 
@@ -738,7 +745,7 @@ mod tests {
 
     fn validate_dir(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = io::BufReader::new(fs::File::open(&p.path()).unwrap());
+            let f = open_buffered(&p.path());
             let mut buffer = Buffer::default();
 
             buffer.consume(&mut XesReader::from(f)).unwrap();
@@ -769,7 +776,7 @@ mod tests {
 
     fn serde_loop_dir(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = io::BufReader::new(fs::File::open(&p.path()).unwrap());
+            let f = open_buffered(&p.path());
             let mut buffer = Buffer::default();
             let mut snapshots: Vec<Vec<u8>> = Vec::new();
 

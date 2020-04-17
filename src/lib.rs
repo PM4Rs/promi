@@ -277,6 +277,8 @@ impl StreamSink for Log {
 /// Useful functions that may panic and are intended for developing promi.
 ///
 pub mod util {
+    use std::io;
+    use std::fs;
     use std::path::{Path, PathBuf};
 
     /// Access assets
@@ -293,5 +295,12 @@ pub mod util {
         }
 
         exp
+    }
+
+    /// Open a file as `io::BufReader`
+    pub fn open_buffered(path: &Path) -> io::BufReader<fs::File> {
+        io::BufReader::new(
+            fs::File::open(&path).expect(format!("No such file {:?}", &path).as_str())
+        )
     }
 }

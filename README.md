@@ -1,6 +1,12 @@
 # promi
 **Process Mining for Rust**
 
+[![Build Status](https://travis-ci.org/PM4Rs/promi.svg?branch=master)](https://travis-ci.org/PM4Rs/promi)
+[![Crate](https://img.shields.io/crates/v/promi)](https://crates.io/crates/promi)
+[![API](https://docs.rs/promi/badge.svg)](https://docs.rs/promi)
+[![License](https://img.shields.io/crates/l/promi)](https://crates.io/crates/promi#license)
+[![Downloads](https://img.shields.io/crates/d/promi)](https://crates.io/crates/promi)
+
 ## Roadmap `0.x.x`
 * **`0.0.x` get in shape**
     * harmonize imports

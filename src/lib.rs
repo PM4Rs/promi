@@ -49,9 +49,13 @@ pub mod stream;
 use std::convert::TryFrom;
 use stream::{buffer, Element, Stream, StreamSink};
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// promi's datetime type
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
 
+/// promi version
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Data types supported by attributes
 #[derive(Debug, Clone)]
 pub enum AttributeType {
     String(String),
@@ -63,6 +67,7 @@ pub enum AttributeType {
     List(Vec<Attribute>),
 }
 
+/// Represents whether global or classifier target events or traces
 #[derive(Debug, Clone)]
 pub enum Scope {
     Event,
@@ -85,12 +90,27 @@ impl TryFrom<Option<String>> for Scope {
     }
 }
 
+/// Express atomic information
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > Information on any component (log, trace, or event) is stored in attribute components.
+/// > Attributes describe the enclosing component, which may contain an arbitrary number of
+/// > attributes.
+///
 #[derive(Debug, Clone)]
 pub struct Attribute {
     key: String,
     value: AttributeType,
 }
 
+/// Provide semantics for sets of attributes
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > An extension defines a (possibly empty) set of attributes for every type of component.
+/// > The extension provides points of reference for interpreting these attributes, and, thus, their
+/// > components. Extensions, therefore, are primarily a vehicle for attaching semantics to a set of
+/// > defined attributes per component.
+///
 #[derive(Debug, Clone)]
 pub struct Extension {
     name: String,
@@ -98,12 +118,26 @@ pub struct Extension {
     uri: String,
 }
 
+/// Global attributes and defaults
+///
+/// Globals define attributes that have to be present in target scope and provide default values for
+/// such. This may either target traces or events, regardless whether within a trace or not.
+///
 #[derive(Debug, Clone)]
 pub struct Global {
     scope: Scope,
     attributes: Vec<Attribute>,
 }
 
+/// Assigns an identity to trace or event
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A classifier assigns an identity to each event that
+/// > makes it comparable to others (via their assigned identity). Examples of such identities
+/// > include the descriptive name of the event, the descriptive name of the case the event
+/// > relates to, the descriptive name of the cause of the event, and the descriptive name of the
+/// > case related to the event.
+///
 #[derive(Debug, Clone)]
 pub struct Classifier {
     name: String,
@@ -111,6 +145,15 @@ pub struct Classifier {
     keys: String,
 }
 
+/// Represents an atomic granule of activity that has been observed
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > An event component represents an atomic granule of activity that has been observed. If
+/// > the event occurs in some trace, then it is clear to which case the event belongs. If the event
+/// > does not occur in some trace, that is, if it occurs in the log, then we need ways to relate
+/// > events to cases. For this, we will use the combination of a trace classifier and an event
+/// > classifier.
+///
 #[derive(Debug, Clone)]
 pub struct Event {
     attributes: Vec<Attribute>,
@@ -124,6 +167,14 @@ impl Default for Event {
     }
 }
 
+/// Represents the execution of a single case
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A trace component represents the execution of a single case, that is, of a single
+/// > execution (or enactment) of the specific process. A trace shall contain a (possibly empty)
+/// > list of events that are related to a single case. The order of the events in this list shall
+/// > be important, as it signifies the order in which the events have been observed.
+///
 #[derive(Debug, Clone)]
 pub struct Trace {
     attributes: Vec<Attribute>,
@@ -139,6 +190,16 @@ impl Default for Trace {
     }
 }
 
+/// Represents information that is related to a specific process
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A log component represents information that is related to a specific process. Examples
+/// > of processes include handling insurance claims, using a complex X-ray machine, and browsing a
+/// > website. A log shall contain a (possibly empty) collection of traces followed by a (possibly
+/// > empty) list of events. The order of the events in this list shall be important, as it
+/// > signifies the order in which the events have been observed. If the log contains only events
+/// > and no traces, then the log is also called a stream.
+///
 #[derive(Debug, Clone)]
 pub struct Log {
     extensions: Vec<Extension>,
@@ -212,9 +273,18 @@ impl StreamSink for Log {
     }
 }
 
+
+/// Useful functions that may panic and are intended for developing promi.
+///
 pub mod util {
     use std::path::{Path, PathBuf};
 
+    /// Access assets
+    ///
+    /// For developing promi it's useful to work with some test files that are located in `/static`.
+    /// In order to locate these in your system, this function exists. It takes a list of relative
+    /// location descriptors and expands them to an absolute path.
+    ///
     pub fn expand_static(path: &[&str]) -> PathBuf {
         let mut exp = Path::new(env!("CARGO_MANIFEST_DIR")).join("static");
 

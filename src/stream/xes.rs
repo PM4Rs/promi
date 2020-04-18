@@ -1,34 +1,23 @@
-//! Extensible Event Stream (XES) support for _promi_
+//! XML serialization and deserialization of XES
 //!
-//! This module implements the XES standard version 1.0
-//! ([IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html)). It supports a super
-//! set of the XES for reading with optional validation. Resources on specification can be found at
-//! [xes-standard.org](http://www.xes-standard.org/) and other than the shipped example files at
-//! [processmining.org](http://www.processmining.org/logs/start).
+//! This module implements XML serialization, deserialization and validation of XES
+//! (IEEE Std 1849-2016). In fact, for reading it understands a super set of XES due to technical
+//! simplicity and compatibility with older or broken instances. However, for writing we aim to be
+//! 100% compliant (assuming validation is turned on). Hence, if you run into a case where invalid
+//! XES XML is produced consider it a bug and feel invited to report an issue.
 //!
-//! Things _promi_ handles differently to the standard:
-//! * Additional attributes for elements are ignored rather than causing failure.
-//! * String based attributes are not validated on import[1] automatically. This affects
-//!     * `Attribute.key` (`xs:Name`)
-//!     * `Extension.name` (`xs:NCName`)
-//!     * `Extension.prefix` (`xs:NCName`)
-//!     * `Extension.uri` (`xs:anyURI`)
-//!     * `Global.scope` (`xs:NCName`)
-//!     * `Classifier.name` (`xs:NCName`)
-//!     * `Classifier.scope` (`xs:NCName`)
-//!     * `Classifier.keys` (`xs:token`)
+//! For further information see [xes-standard.org](http://www.xes-standard.org/) and for other than
+//! the shipped example files see [processmining.org](http://www.processmining.org/logs/start).
 //!
-//!     However, validation of these items is provided by `XesValidator`
-//!
-//! When running in trouble by parsing a XES file, consider validating against the official schema
-//! definition first which is a simple bash one-liner (_xmllint_ required)
+//! When having trouble while parsing a XES file, consider validating against the official schema
+//! definition first which is a simple bash one-liner (_xmllint_ required):
 //!
 //! ```bash
-//! xmllint --schema http://www.xes-standard.org/xes-ieee-1849-2016.xsd file.xes --noout
+//! xmllint \
+//!     --noout \
+//!     --schema http://www.xes-standard.org/downloads/xes-ieee-1849-2016-April-15-2020.xsd \
+//!     file.xes
 //! ```
-//!
-//! [1] Files found in the wild sometimes tend to be not 100% standard compliant. This affects even
-//!     examples from the popular processmining book.
 //!
 //! # Example
 //! ```
@@ -438,7 +427,6 @@ impl TryFrom<XesIntermediate> for XesElement {
     }
 }
 
-/// A container for XES element data used during parsing to collect attributes and child elements
 #[derive(Debug)]
 struct XesIntermediate {
     type_name: String,
@@ -480,6 +468,7 @@ impl XesIntermediate {
     }
 }
 
+/// XML deserialization of XES
 pub struct XesReader<R: io::BufRead> {
     reader: QxReader<R>,
     buffer: Vec<u8>,
@@ -580,6 +569,7 @@ impl<T: io::BufRead> Stream for XesReader<T> {
     }
 }
 
+/// XML serialization of XES
 pub struct XesWriter<W: io::Write> {
     writer: QxWriter<W>,
     bytes_written: usize,
@@ -664,6 +654,23 @@ impl<W: io::Write> XesWriter<W> {
     }
 }
 
+/// Validates an extensible event stream
+///
+/// **Element level validation**
+/// * string types
+///     * `Attribute.key` (`xs:Name`)
+///     * `Extension.name` (`xs:NCName`)
+///     * `Extension.prefix` (`xs:NCName`)
+///     * `Extension.uri` (`xs:anyURI`)
+///     * `Global.scope` (`xs:NCName`)
+///     * `Classifier.name` (`xs:NCName`)
+///     * `Classifier.scope` (`xs:NCName`)
+///     * `Classifier.keys` (`xs:token`)
+///
+/// **Semantic validation**
+/// * nested attributes
+/// * globals
+///
 pub struct XesValidator {/* TODO to be implemented */}
 
 #[cfg(test)]

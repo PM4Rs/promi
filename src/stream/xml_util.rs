@@ -70,6 +70,15 @@ lazy_static! {
     pub static ref CRE_URI: Regex = Regex::new(RE_URI).unwrap();
 }
 
+pub fn parse_bool(string: &str) -> Result<bool> {
+    match string {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
+    }
+    .ok_or(Error::ParseBooleanError(string.to_string()))
+}
+
 pub fn validate_token(token: &str) -> Result<&str> {
     if (&*CRE_TOKEN).is_match(token) {
         Ok(token)
@@ -117,6 +126,16 @@ pub fn validate_uri(uri: &str) -> Result<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_bool() {
+        assert!(parse_bool("true").unwrap());
+        assert!(parse_bool("1").unwrap());
+        assert!(!parse_bool("false").unwrap());
+        assert!(!parse_bool("0").unwrap());
+        assert!(parse_bool("").is_err());
+        assert!(parse_bool("jein").is_err());
+    }
 
     fn assert_matches(regex: &Regex, matches: &[&str], no_matches: &[&str]) {
         for (m, n) in matches.iter().zip(no_matches.iter()) {

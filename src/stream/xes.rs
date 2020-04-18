@@ -60,20 +60,13 @@ use quick_xml::{Reader as QxReader, Writer as QxWriter};
 
 // local
 use crate::error::{Error, Result};
-use crate::stream::xml_util::{validate_name, validate_ncname, validate_token, validate_uri};
+use crate::stream::xml_util::{
+    parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
+};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 use crate::{
     Attribute, AttributeType, Classifier, DateTime, Event, Extension, Global, Log, Scope, Trace,
 };
-
-fn parse_bool(string: &str) -> Result<bool> {
-    match string {
-        "true" | "1" => Some(true),
-        "false" | "0" => Some(false),
-        _ => None,
-    }
-    .ok_or(Error::ParseBooleanError(string.to_string()))
-}
 
 #[derive(Debug)]
 enum XesElement {
@@ -685,16 +678,6 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::process::{Command, Output, Stdio};
     use thiserror::private::PathAsDisplay;
-
-    #[test]
-    fn test_parse_bool() {
-        assert!(parse_bool("true").unwrap());
-        assert!(parse_bool("1").unwrap());
-        assert!(!parse_bool("false").unwrap());
-        assert!(!parse_bool("0").unwrap());
-        assert!(parse_bool("").is_err());
-        assert!(parse_bool("jein").is_err());
-    }
 
     fn deserialize_dir(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {

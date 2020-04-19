@@ -70,6 +70,11 @@ lazy_static! {
     pub static ref CRE_URI: Regex = Regex::new(RE_URI).unwrap();
 }
 
+/// Parse string as boolean
+///
+/// Parse XML representation of a boolean, see
+/// [www.w3.org](https://www.w3.org/TR/xmlschema-2/#boolean)
+///
 pub fn parse_bool(string: &str) -> Result<bool> {
     match string {
         "true" | "1" => Some(true),
@@ -79,6 +84,10 @@ pub fn parse_bool(string: &str) -> Result<bool> {
     .ok_or(Error::ParseBooleanError(string.to_string()))
 }
 
+/// Validate `xs:Token` string type
+///
+/// For further information, see: [www.w3.org](https://www.w3.org/TR/xmlschema-2/#token)
+///
 pub fn validate_token(token: &str) -> Result<&str> {
     if (&*CRE_TOKEN).is_match(token) {
         Ok(token)
@@ -90,6 +99,10 @@ pub fn validate_token(token: &str) -> Result<&str> {
     }
 }
 
+/// Validate `xs:Name` string type
+///
+/// For further information, see: [www.w3.org](https://www.w3.org/TR/xmlschema-2/#Name)
+///
 pub fn validate_name(name: &str) -> Result<&str> {
     if (&*CRE_NAME).is_match(name) {
         Ok(name)
@@ -101,6 +114,10 @@ pub fn validate_name(name: &str) -> Result<&str> {
     }
 }
 
+/// Validate `xs:NCName` string type
+///
+/// For further information, see: [www.w3.org](https://www.w3.org/TR/xmlschema-2/#NCName)
+///
 pub fn validate_ncname(ncname: &str) -> Result<&str> {
     if (&*CRE_NCNAME).is_match(ncname) {
         Ok(ncname)
@@ -112,6 +129,10 @@ pub fn validate_ncname(ncname: &str) -> Result<&str> {
     }
 }
 
+/// Validate `xs:anyURI` string type
+///
+/// For further information, see: [www.w3.org](https://www.w3.org/TR/xmlschema-2/#anyURI)
+///
 pub fn validate_uri(uri: &str) -> Result<&str> {
     if (&*CRE_URI).is_match(uri) {
         Ok(uri)

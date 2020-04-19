@@ -29,6 +29,7 @@ use std::fmt::Debug;
 use crate::error::{Error, Result};
 use crate::{Attribute, Classifier, Event, Extension, Global, Trace};
 
+/// Atomic unit of an extensible event stream
 #[derive(Debug, Clone)]
 pub enum Element {
     Extension(Extension),
@@ -39,16 +40,31 @@ pub enum Element {
     Event(Event),
 }
 
+/// Container for stream elements that can express the empty element as well as errors
 pub type ResOpt = Result<Option<Element>>;
 
+/// Extensible event streams
+///
+/// Yields one stream element at a time. Usually, it either acts as a factory or forwards another
+/// stream. Errors are propagated to the caller.
+///
 pub trait Stream {
+    /// Returns the next stream element
     fn next_element(&mut self) -> ResOpt;
 }
 
+/// Stream endpoint
+///
+/// A stream sink acts as an endpoint for an extensible event stream and is usually used when a
+/// stream is converted into different representation. If that's not intended, the `consume`
+/// function is a good shortcut. It simply discards the stream's contents.
+///
 pub trait StreamSink {
+    /// Invokes a stream as long as it provides new elements.
     fn consume<T: Stream>(&mut self, source: &mut T) -> Result<()>;
 }
 
+/// Stream sink that discards consumed contents
 pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
     loop {
         match stream.next_element()? {
@@ -60,6 +76,7 @@ pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
     Ok(())
 }
 
+/// State of an extensible event stream
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum StreamState {
     Extension,
@@ -70,8 +87,9 @@ pub enum StreamState {
     Event,
 }
 
+/// Memorizes meta elements of an extensible event stream. Used by the observer
 #[derive(Debug, Clone)]
-pub struct StreamMeta {
+pub struct MetaCache {
     state: StreamState,
     extensions: HashMap<String, Extension>,
     globals: Vec<Global>,
@@ -79,7 +97,7 @@ pub struct StreamMeta {
     attributes: HashMap<String, Attribute>,
 }
 
-impl Default for StreamMeta {
+impl Default for MetaCache {
     fn default() -> Self {
         Self {
             state: StreamState::Extension,
@@ -91,7 +109,13 @@ impl Default for StreamMeta {
     }
 }
 
-impl StreamMeta {
+impl MetaCache {
+    /// Update meta cache by given element
+    ///
+    /// If the given element contains meta data a copy of it is cached. If the triggered state
+    /// transition doesn't comply with the order obligated by the XES standard an error is thrown.
+    /// Otherwise, the state transition is returned.
+    ///
     fn update(&mut self, element: &Element) -> Result<(StreamState, StreamState)> {
         let old_state = self.state.clone();
 
@@ -137,20 +161,48 @@ impl StreamMeta {
     }
 }
 
+/// Gets registered with an observer wile providing callbacks
+///
+/// All callback functions are optional. The `meta` callback is revoked once a transition from meta
+/// data to payload is passed. `trace` is revoked on all traces, `event` on all events regardless of
+/// whether or not it's part of a trace. Payload callbacks may also act as a filter and not return
+/// the element.
+///
 pub trait Handler {
-    fn meta(&mut self, _meta: &StreamMeta) {}
-    fn trace(&mut self, trace: Trace, _meta: &StreamMeta) -> Result<Trace> {
-        Ok(trace)
+    /// Handle stream meta data
+    ///
+    /// Invoked once per stream when transition from meta data to payload is passed.
+    ///
+    fn meta(&mut self, _meta: &MetaCache) {}
+
+    /// Handle a trace
+    ///
+    /// Invoked on each trace that occurs in a stream. Events contained toggle a separate callback.
+    ///
+    fn trace(&mut self, trace: Trace, _meta: &MetaCache) -> Result<Option<Trace>> {
+        Ok(Some(trace))
     }
-    fn event(&mut self, event: Event, _meta: &StreamMeta) -> Result<Event> {
-        Ok(event)
+
+    /// Handle an event
+    ///
+    /// Invoked on each event in stream. Whether the element is part of a trace is indicated by
+    /// `in_trace`.
+    ///
+    fn event(&mut self, event: Event, _in_trace: bool, _meta: &MetaCache) -> Result<Option<Event>> {
+        Ok(Some(event))
     }
 }
 
+/// Observes a stream and revokes registered callbacks
+///
+/// An observer preserves a state with copies of meta data elements. It manages an arbitrary number
+/// of registered handlers and invokes their callbacks. Further, it checks if elements of the stream
+/// occur in a valid order.
+///
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
-    meta: StreamMeta,
+    meta: MetaCache,
     handler: Vec<H>,
 }
 
@@ -158,99 +210,110 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     fn new(stream: I) -> Self {
         Observer {
             stream,
-            meta: StreamMeta::default(),
+            meta: MetaCache::default(),
             handler: Vec::new(),
         }
     }
 
-    fn add_handler(&'a mut self, handler: H) -> &'a mut Self {
+    /// Register a new handler
+    fn register(&'a mut self, handler: H) -> &'a mut Self {
         self.handler.push(handler);
         self
+    }
+
+    /// Release handler (opposite registering order)
+    fn release(&mut self) -> Option<H> {
+        self.handler.pop()
+    }
+
+    fn handle_element(
+        &mut self,
+        element: Element,
+        (old, new): (StreamState, StreamState),
+    ) -> ResOpt {
+        if old < StreamState::Trace && new >= StreamState::Trace {
+            for handler in self.handler.iter_mut() {
+                handler.meta(&self.meta);
+            }
+        }
+
+        let element = match element {
+            Element::Extension(e) => Element::Extension(e),
+            Element::Global(e) => Element::Global(e),
+            Element::Classifier(e) => Element::Classifier(e),
+            Element::Attribute(e) => Element::Attribute(e),
+            Element::Trace(trace) => {
+                let mut trace = trace;
+
+                for handler in self.handler.iter_mut() {
+                    trace = match handler.trace(trace, &self.meta)? {
+                        Some(trace) => trace,
+                        None => return Ok(None),
+                    };
+                }
+
+                let tmp: Vec<Event> = Vec::new();
+
+                loop {
+                    if let Some(event) = trace.traces.pop() {
+                        let mut event = event;
+
+                        for handler in self.handler.iter_mut() {
+                            event = match handler.event(event, true, &self.meta)? {
+                                Some(event) => event,
+                                None => break,
+                            };
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                trace.traces.extend(tmp);
+
+                Element::Trace(trace)
+            }
+            Element::Event(event) => {
+                let mut event = event;
+
+                for handler in self.handler.iter_mut() {
+                    event = match handler.event(event, false, &self.meta)? {
+                        Some(event) => event,
+                        None => return Ok(None),
+                    };
+                }
+
+                Element::Event(event)
+            }
+        };
+
+        Ok(Some(element))
     }
 }
 
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
     fn next_element(&mut self) -> ResOpt {
-        if let Some(element) = self.stream.next_element()? {
-            // update meta data
-            let (old, new) = self.meta.update(&element)?;
-
-            if old < StreamState::Trace && new >= StreamState::Trace {
-                for handler in self.handler.iter_mut() {
-                    handler.meta(&self.meta);
+        loop {
+            if let Some(element) = self.stream.next_element()? {
+                let transition = self.meta.update(&element)?;
+                if let Some(element) = self.handle_element(element, transition)? {
+                    return Ok(Some(element));
                 }
+            } else {
+                break;
             }
-
-            let element = match element {
-                Element::Extension(e) => Element::Extension(e),
-                Element::Global(e) => Element::Global(e),
-                Element::Classifier(e) => Element::Classifier(e),
-                Element::Attribute(e) => Element::Attribute(e),
-                Element::Trace(trace) => {
-                    let mut trace = trace;
-
-                    for handler in self.handler.iter_mut() {
-                        trace = handler.trace(trace, &self.meta)?;
-                    }
-
-                    Element::Trace(trace)
-                }
-                Element::Event(event) => {
-                    let mut event = event;
-
-                    for handler in self.handler.iter_mut() {
-                        event = handler.event(event, &self.meta)?;
-                    }
-
-                    Element::Event(event)
-                }
-            };
-            Ok(Some(element))
-        } else {
-            Ok(None)
         }
+
+        Ok(None)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct TestHandler {
-        meta_count: usize,
-        trace_count: usize,
-        event_count: usize,
-    }
-
-    impl Default for TestHandler {
-        fn default() -> Self {
-            Self {
-                meta_count: 0,
-                trace_count: 0,
-                event_count: 0,
-            }
-        }
-    }
-
-    impl Handler for TestHandler {
-        fn meta(&mut self, _meta: &StreamMeta) {
-            self.meta_count += 1;
-        }
-        fn trace(&mut self, trace: Trace, _meta: &StreamMeta) -> Result<Trace> {
-            self.trace_count += 1;
-            Ok(trace)
-        }
-        fn event(&mut self, event: Event, _meta: &StreamMeta) -> Result<Event> {
-            self.event_count += 1;
-            Ok(event)
-        }
-    }
-
-    impl TestHandler {
-        fn counts(&self) -> (usize, usize, usize) {
-            (self.meta_count, self.trace_count, self.event_count)
-        }
-    }
+    use crate::stream::xes::XesReader;
+    use crate::util::{expand_static, open_buffered};
+    use std::path::PathBuf;
 
     #[test]
     fn test_consume() {
@@ -261,5 +324,170 @@ mod tests {
         consume(&mut buffer).unwrap();
 
         assert_eq!(buffer.len(), 0);
+    }
+
+    #[derive(Debug)]
+    struct TestHandler {
+        filter: bool,
+        ct_meta: usize,
+        ct_trace: usize,
+        ct_event: usize,
+        ct_in_trace: usize,
+    }
+
+    impl Handler for TestHandler {
+        fn meta(&mut self, _meta: &MetaCache) {
+            self.ct_meta += 1;
+        }
+
+        fn trace(&mut self, trace: Trace, _meta: &MetaCache) -> Result<Option<Trace>> {
+            self.ct_trace += 1;
+
+            if !self.filter || self.ct_trace % 2 == 0 {
+                Ok(Some(trace))
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn event(
+            &mut self,
+            event: Event,
+            _in_trace: bool,
+            _meta: &MetaCache,
+        ) -> Result<Option<Event>> {
+            self.ct_event += 1;
+
+            if _in_trace {
+                self.ct_in_trace += 1;
+            }
+
+            if !self.filter || self.ct_event % 2 == 0 {
+                Ok(Some(event))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    impl TestHandler {
+        fn new(filter: bool) -> Self {
+            Self {
+                filter,
+                ct_meta: 0,
+                ct_trace: 0,
+                ct_event: 0,
+                ct_in_trace: 0,
+            }
+        }
+
+        fn counts(&self) -> [usize; 4] {
+            [self.ct_meta, self.ct_trace, self.ct_event, self.ct_in_trace]
+        }
+    }
+
+    fn _test_observer(path: PathBuf, counts: &[usize; 4], filter: bool) {
+        let f = open_buffered(&path);
+        let reader = XesReader::from(f);
+        let mut observer = Observer::new(reader);
+
+        observer.register(TestHandler::new(filter));
+        observer.register(TestHandler::new(false));
+
+        consume(&mut observer).unwrap();
+
+        let handler_2 = observer.release().unwrap();
+        let handler_1 = observer.release().unwrap();
+
+        if !filter {
+            assert_eq!(&handler_1.counts(), counts);
+        }
+        assert_eq!(&handler_2.counts(), counts);
+    }
+
+    #[test]
+    fn test_observer_handling() {
+        let param = [
+            ("L1.xes", [1, 6, 23, 23]),
+            ("L2.xes", [1, 13, 80, 80]),
+            ("L3.xes", [1, 4, 39, 39]),
+            ("L4.xes", [1, 147, 441, 441]),
+            ("L5.xes", [1, 14, 92, 92]),
+            ("L11.xes", [1, 50, 120, 120]),
+            ("L12.xes", [1, 200, 600, 600]),
+        ];
+
+        for (f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", "book", f]), counts, false)
+        }
+
+        let param = [
+            ("log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("event_correct_attributes.xes", [1, 1, 4, 2]),
+        ];
+
+        for (f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", "correct", f]), counts, false)
+        }
+    }
+
+    #[test]
+    fn test_observer_filtering() {
+        let param = [
+            ("L1.xes", [1, 3, 6, 6]),
+            ("L2.xes", [1, 6, 18, 18]),
+            ("L3.xes", [1, 2, 6, 6]),
+            ("L4.xes", [1, 73, 109, 109]),
+            ("L5.xes", [1, 7, 23, 23]),
+            ("L11.xes", [1, 25, 30, 30]),
+            ("L12.xes", [1, 100, 150, 150]),
+        ];
+
+        for (f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", "book", f]), counts, true)
+        }
+
+        let param = [
+            ("log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("event_correct_attributes.xes", [1, 0, 1, 0]),
+        ];
+
+        for (f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", "correct", f]), counts, true)
+        }
+    }
+
+    #[test]
+    fn test_observer_order_validation() {
+        let names = [
+            "misplaced_extension_event.xes",
+            "misplaced_extension_classifier.xes",
+            "misplaced_trace_event.xes",
+            "misplaced_global_attribute.xes",
+            "misplaced_extension_trace.xes",
+            "misplaced_global_event.xes",
+            "misplaced_classifier_event.xes",
+            "misplaced_extension_attribute.xes",
+            "misplaced_attribute_event.xes",
+            "misplaced_global_classifier.xes",
+            "misplaced_classifier_attribute.xes",
+            "misplaced_classifier_trace.xes",
+            "misplaced_attribute_trace.xes",
+            "misplaced_global_trace.xes",
+            "misplaced_extension_global.xes",
+        ];
+
+        for n in names.iter() {
+            let f = open_buffered(&expand_static(&["xes", "non_validating", n]));
+            let reader = XesReader::from(f);
+            let mut observer = Observer::new(reader);
+
+            observer.register(TestHandler::new(false));
+
+            assert!(
+                consume(&mut observer).is_err(),
+                format!("expected state error: {:?}", n)
+            )
+        }
     }
 }

@@ -178,14 +178,14 @@ impl Default for Event {
 #[derive(Debug, Clone)]
 pub struct Trace {
     attributes: Vec<Attribute>,
-    traces: Vec<Event>,
+    events: Vec<Event>,
 }
 
 impl Default for Trace {
     fn default() -> Self {
         Self {
             attributes: Vec::new(),
-            traces: Vec::new(),
+            events: Vec::new(),
         }
     }
 }

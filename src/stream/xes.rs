@@ -337,7 +337,10 @@ impl TryFrom<XesIntermediate> for Trace {
             }
         }
 
-        Ok(Trace { attributes, traces })
+        Ok(Trace {
+            attributes,
+            events: traces,
+        })
     }
 }
 
@@ -353,7 +356,7 @@ impl Trace {
             bytes += attribute.write_xes(writer)?;
         }
 
-        for trace in self.traces.iter() {
+        for trace in self.events.iter() {
             bytes += trace.write_xes(writer)?;
         }
 

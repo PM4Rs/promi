@@ -255,7 +255,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 let tmp: Vec<Event> = Vec::new();
 
                 loop {
-                    if let Some(event) = trace.traces.pop() {
+                    if let Some(event) = trace.events.pop() {
                         let mut event = event;
 
                         for handler in self.handler.iter_mut() {
@@ -269,7 +269,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                     }
                 }
 
-                trace.traces.extend(tmp);
+                trace.events.extend(tmp);
 
                 Element::Trace(trace)
             }

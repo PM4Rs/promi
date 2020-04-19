@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_stats() {
-        let foo = [
+        let param = [
             ([5, 2, 3, 3, 6, 0], "L1.xes"),
             ([5, 2, 3, 3, 13, 0], "L2.xes"),
             ([5, 2, 3, 3, 4, 0], "L3.xes"),
@@ -95,7 +95,7 @@ mod tests {
             ([5, 2, 3, 3, 200, 0], "L12.xes"),
         ];
 
-        for (e, f) in foo.iter() {
+        for (e, f) in param.iter() {
             let mut stats = StreamStats::new(buffer::load_example(&["xes", "book", f]));
             stream::consume(&mut stats).unwrap();
             assert_eq!(*e, counts(&stats));

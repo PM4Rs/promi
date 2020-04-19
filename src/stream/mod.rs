@@ -207,7 +207,8 @@ pub struct Observer<I: Stream, H: Handler> {
 }
 
 impl<'a, I: Stream, H: Handler> Observer<I, H> {
-    fn new(stream: I) -> Self {
+    /// Create new observer
+    pub fn new(stream: I) -> Self {
         Observer {
             stream,
             meta: MetaCache::default(),
@@ -216,13 +217,13 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     }
 
     /// Register a new handler
-    fn register(&'a mut self, handler: H) -> &'a mut Self {
+    pub fn register(&'a mut self, handler: H) -> &'a mut Self {
         self.handler.push(handler);
         self
     }
 
     /// Release handler (opposite registering order)
-    fn release(&mut self) -> Option<H> {
+    pub fn release(&mut self) -> Option<H> {
         self.handler.pop()
     }
 

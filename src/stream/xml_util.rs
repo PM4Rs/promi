@@ -64,9 +64,16 @@ lazy_static! {
     static ref CRE_LETTER: Regex = Regex::new(&*RE_LETTER).unwrap();
 
     // string level
+    /// Compiled regular expression for validating `xs:Token`
     pub static ref CRE_TOKEN: Regex = Regex::new(&*RE_TOKEN).unwrap();
+
+    /// Compiled regular expression for validating `xs:Name`
     pub static ref CRE_NAME: Regex = Regex::new(&*RE_NAME).unwrap();
+
+    /// Compiled regular expression for validating `xs:NCName`
     pub static ref CRE_NCNAME: Regex = Regex::new(&*RE_NCNAME).unwrap();
+
+    /// Compiled regular expression for validating `xs:anyUri`
     pub static ref CRE_URI: Regex = Regex::new(RE_URI).unwrap();
 }
 

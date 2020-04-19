@@ -20,6 +20,7 @@
 //! ```
 //!
 //! # Example
+//! This example illustrates how to serialize XES XML from a string and deserialize it to stdout.
 //! ```
 //! use std::io;
 //! use promi::stream::StreamSink;

@@ -253,24 +253,28 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                     };
                 }
 
-                let tmp: Vec<Event> = Vec::new();
+                let mut tmp: Vec<Event> = Vec::new();
 
                 loop {
                     if let Some(event) = trace.events.pop() {
-                        let mut event = event;
+                        let mut event = Some(event);
 
                         for handler in self.handler.iter_mut() {
-                            event = match handler.event(event, true, &self.meta)? {
-                                Some(event) => event,
-                                None => break,
-                            };
+                            event = match event {
+                                Some(event) => handler.event(event, true, &self.meta)?,
+                                None => None,
+                            }
+                        }
+
+                        if let Some(event) = event {
+                            tmp.push(event);
                         }
                     } else {
                         break;
                     }
                 }
 
-                trace.events.extend(tmp);
+                trace.events.append(&mut tmp);
 
                 Element::Trace(trace)
             }
@@ -413,9 +417,7 @@ mod tests {
             ("L2.xes", [1, 13, 80, 80]),
             ("L3.xes", [1, 4, 39, 39]),
             ("L4.xes", [1, 147, 441, 441]),
-            ("L5.xes", [1, 14, 92, 92]),
-            ("L11.xes", [1, 50, 120, 120]),
-            ("L12.xes", [1, 200, 600, 600]),
+            ("L5.xes", [1, 14, 92, 92])
         ];
 
         for (f, counts) in param.iter() {
@@ -439,9 +441,7 @@ mod tests {
             ("L2.xes", [1, 6, 18, 18]),
             ("L3.xes", [1, 2, 6, 6]),
             ("L4.xes", [1, 73, 109, 109]),
-            ("L5.xes", [1, 7, 23, 23]),
-            ("L11.xes", [1, 25, 30, 30]),
-            ("L12.xes", [1, 100, 150, 150]),
+            ("L5.xes", [1, 7, 23, 23])
         ];
 
         for (f, counts) in param.iter() {

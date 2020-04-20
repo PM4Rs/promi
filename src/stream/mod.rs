@@ -413,48 +413,34 @@ mod tests {
     #[test]
     fn test_observer_handling() {
         let param = [
-            ("L1.xes", [1, 6, 23, 23]),
-            ("L2.xes", [1, 13, 80, 80]),
-            ("L3.xes", [1, 4, 39, 39]),
-            ("L4.xes", [1, 147, 441, 441]),
-            ("L5.xes", [1, 14, 92, 92])
+            ("book", "L1.xes", [1, 6, 23, 23]),
+            ("book", "L2.xes", [1, 13, 80, 80]),
+            ("book", "L3.xes", [1, 4, 39, 39]),
+            ("book", "L4.xes", [1, 147, 441, 441]),
+            ("book", "L5.xes", [1, 14, 92, 92]),
+            ("correct", "log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 1, 4, 2])
         ];
 
-        for (f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", "book", f]), counts, false)
-        }
-
-        let param = [
-            ("log_correct_attributes.xes", [0, 0, 0, 0]),
-            ("event_correct_attributes.xes", [1, 1, 4, 2]),
-        ];
-
-        for (f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", "correct", f]), counts, false)
+        for (d, f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", d, f]), counts, false)
         }
     }
 
     #[test]
     fn test_observer_filtering() {
         let param = [
-            ("L1.xes", [1, 3, 6, 6]),
-            ("L2.xes", [1, 6, 18, 18]),
-            ("L3.xes", [1, 2, 6, 6]),
-            ("L4.xes", [1, 73, 109, 109]),
-            ("L5.xes", [1, 7, 23, 23])
+            ("book", "L1.xes", [1, 3, 6, 6]),
+            ("book", "L2.xes", [1, 6, 18, 18]),
+            ("book", "L3.xes", [1, 2, 6, 6]),
+            ("book", "L4.xes", [1, 73, 109, 109]),
+            ("book", "L5.xes", [1, 7, 23, 23]),
+            ("correct", "log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 0, 1, 0]),
         ];
 
-        for (f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", "book", f]), counts, true)
-        }
-
-        let param = [
-            ("log_correct_attributes.xes", [0, 0, 0, 0]),
-            ("event_correct_attributes.xes", [1, 0, 1, 0]),
-        ];
-
-        for (f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", "correct", f]), counts, true)
+        for (d, f, counts) in param.iter() {
+            _test_observer(expand_static(&["xes", d, f]), counts, true)
         }
     }
 

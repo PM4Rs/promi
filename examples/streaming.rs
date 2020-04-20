@@ -1,4 +1,5 @@
-use promi::stream::{buffer, stats, xes, StreamSink};
+use promi::stream::stats::StreamStats;
+use promi::stream::{buffer, stats, xes, Observer, StreamSink};
 use promi::util::expand_static;
 use promi::Log;
 use std::fs;
@@ -56,23 +57,27 @@ fn example_2() {
     let path = expand_static(&["xes", "book", "L1.xes"]);
     let f = io::BufReader::new(fs::File::open(&path).unwrap());
 
-    print!("read {:?} to log and gather statistics: ", &path);
+    print!("read {:?} to log and count elements: ", &path);
     let mut log = Log::default();
     let reader = xes::XesReader::from(f);
-    let mut stats = stats::StreamStats::new(reader);
-    log.consume(&mut stats).unwrap();
+    let mut counter = stats::Counter::new(reader);
+    log.consume(&mut counter).unwrap();
     println!("{:?}", &log);
 
     print!("convert log to stream buffer: ");
     let mut buffer: buffer::Buffer = log.into();
     println!("{:?}", &buffer);
 
-    println!("stream buffer to stdout:");
+    println!("stream buffer via observer to stdout:");
+    let mut observer = Observer::new(buffer);
+    observer.register(StreamStats::default());
+
     let mut writer = xes::XesWriter::new(io::stdout(), None, None);
-    writer.consume(&mut buffer).unwrap();
+    writer.consume(&mut observer).unwrap();
 
     println!("\n");
-    println!("{}", stats)
+    println!("{}", counter);
+    println!("{}", observer.release().unwrap());
 }
 
 fn main() {

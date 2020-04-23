@@ -13,6 +13,7 @@
 
 // modules
 pub mod buffer;
+pub mod channel;
 pub mod filter;
 pub mod stats;
 pub mod xes;
@@ -117,12 +118,12 @@ pub struct Duplicator<T: Stream, S: StreamSink> {
 
 impl<T: Stream, S: StreamSink> Duplicator<T, S> {
     /// Create a new duplicator
-    fn new(stream: T, sink: S) -> Self {
+    pub fn new(stream: T, sink: S) -> Self {
         Duplicator { stream, sink, open: false }
     }
 
     /// Drop duplicator and release sink
-    fn into_sink(self) -> S {
+    pub fn into_sink(self) -> S {
         self.sink
     }
 }

@@ -9,8 +9,9 @@ use thiserror::Error;
 
 // local
 use crate::stream;
-use std::string::FromUtf8Error;
+use crate::stream::ResOpt;
 
+/// A common error type for promi
 #[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("state order violation: cannot go back into {got:?} when in {current:?}")]
@@ -48,18 +49,29 @@ pub enum Error {
 
     #[error("{0}")]
     XesError(String),
+
+    #[error("{0}")]
+    SendError(String)
 }
 
-// Convert error types that don't support cloning.
+// Manual conversion as quick-xml errors don't support cloning
 impl From<quick_xml::Error> for Error {
-    fn from(err: quick_xml::Error) -> Self {
-        Error::XMLError(format!("{:?}", err))
+    fn from(error: quick_xml::Error) -> Self {
+        Error::XMLError(format!("{:?}", error))
     }
 }
 
+// Manual conversion as string errors errors don't support cloning
 impl From<std::string::FromUtf8Error> for Error {
-    fn from(err: FromUtf8Error) -> Self {
-        Error::FromUtf8Error(format!("{:?}", err))
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        Error::FromUtf8Error(format!("{:?}", error))
+    }
+}
+
+// Manual conversion to prevent recursion
+impl From<std::sync::mpsc::SendError<crate::stream::ResOpt>> for Error {
+    fn from(error: std::sync::mpsc::SendError<crate::stream::ResOpt>) -> Self {
+        Error::SendError(format!("{:?}", error))
     }
 }
 

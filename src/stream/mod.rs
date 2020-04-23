@@ -104,6 +104,53 @@ pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
     Ok(())
 }
 
+/// Creates a copy of an extensible event stream on the fly
+///
+/// A duplicator forwards a stream while copying each element (and errors) to forward them to the
+/// given stream sink.
+///
+pub struct Duplicator<T: Stream, S: StreamSink> {
+    stream: T,
+    sink: S,
+    open: bool
+}
+
+impl<T: Stream, S: StreamSink> Duplicator<T, S> {
+    /// Create a new duplicator
+    fn new(stream: T, sink: S) -> Self {
+        Duplicator { stream, sink, open: false }
+    }
+
+    /// Drop duplicator and release sink
+    fn into_sink(self) -> S {
+        self.sink
+    }
+}
+
+impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
+    fn next(&mut self) -> ResOpt {
+        if !self.open {
+            self.open = true;
+            self.sink.on_open()?;
+        }
+
+        match self.stream.next() {
+            Ok(Some(element)) => {
+                self.sink.on_element(element.clone())?;
+                Ok(Some(element))
+            },
+            Ok(None) => {
+                self.sink.on_close()?;
+                Ok(None)
+            },
+            Err(error) => {
+                self.sink.on_error(error.clone())?;
+                Err(error)
+            }
+        }
+    }
+}
+
 /// State of an extensible event stream
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum StreamState {
@@ -406,17 +453,23 @@ mod tests {
         }
     }
 
-    fn _test_sink(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
+    fn _test_sink_duplicator(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
         let f = open_buffered(&path);
-        let mut reader = XesReader::from(f);
-        let mut sink = TestSink::default();
+        let reader = XesReader::from(f);
+        let mut sink_1 = TestSink::default();
+        let mut sink_2 = TestSink::default();
+        let mut duplicator = Duplicator::new(reader, sink_1);
 
-        assert!(!(sink.consume(&mut reader).is_err() ^ expect_error));
-        assert_eq!(&sink.counts(), counts);
+        assert_eq!(sink_2.consume(&mut duplicator).is_err(), expect_error);
+
+        let sink_1 = duplicator.into_sink();
+
+        assert_eq!(&sink_1.counts(), counts);
+        assert_eq!(&sink_2.counts(), counts);
     }
 
     #[test]
-    fn test_sink() {
+    fn test_sink_duplicator() {
         let param = [
             ("book", "L1.xes", [1, 19, 1, 0]),
             ("book", "L2.xes", [1, 26, 1, 0]),
@@ -428,7 +481,7 @@ mod tests {
         ];
 
         for (d, f, counts) in param.iter() {
-            _test_sink(expand_static(&["xes", d, f]), counts, false);
+            _test_sink_duplicator(expand_static(&["xes", d, f]), counts, false);
         }
 
         let param = [
@@ -440,7 +493,7 @@ mod tests {
         ];
 
         for (d, f, counts) in param.iter() {
-            _test_sink(expand_static(&["xes", d, f]), counts, true);
+            _test_sink_duplicator(expand_static(&["xes", d, f]), counts, true);
         }
     }
 

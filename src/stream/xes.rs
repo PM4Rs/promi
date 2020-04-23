@@ -495,7 +495,7 @@ impl<R: io::BufRead> From<R> for XesReader<R> {
 // }
 
 impl<T: io::BufRead> Stream for XesReader<T> {
-    fn next_element(&mut self) -> ResOpt {
+    fn next(&mut self) -> ResOpt {
         let mut top_level_element: Option<XesElement> = None;
 
         loop {
@@ -621,7 +621,7 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
         self.bytes_written += self.writer.write_event(QxEvent::Start(event))?;
 
         loop {
-            self.bytes_written += match source.next_element()? {
+            self.bytes_written += match source.next()? {
                 Some(Element::Extension(e)) => e.write_xes(&mut self.writer)?,
                 Some(Element::Global(g)) => g.write_xes(&mut self.writer)?,
                 Some(Element::Classifier(c)) => c.write_xes(&mut self.writer)?,

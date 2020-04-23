@@ -258,7 +258,7 @@ impl Into<buffer::Buffer> for Log {
 impl StreamSink for Log {
     fn consume<T: Stream>(&mut self, source: &mut T) -> error::Result<()> {
         loop {
-            match source.next_element()? {
+            match source.next()? {
                 Some(Element::Extension(e)) => self.extensions.push(e),
                 Some(Element::Global(g)) => self.globals.push(g),
                 Some(Element::Classifier(c)) => self.classifiers.push(c),

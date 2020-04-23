@@ -52,8 +52,8 @@ impl<T: Stream> Counter<T> {
 }
 
 impl<T: Stream> Stream for Counter<T> {
-    fn next_element(&mut self) -> ResOpt {
-        let element = self.stream.next_element()?;
+    fn next(&mut self) -> ResOpt {
+        let element = self.stream.next()?;
 
         match &element {
             Some(Element::Extension(_)) => self.extensions += 1,

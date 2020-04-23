@@ -31,7 +31,7 @@ impl Default for Buffer {
 }
 
 impl Stream for Buffer {
-    fn next_element(&mut self) -> ResOpt {
+    fn next(&mut self) -> ResOpt {
         match self.buffer.pop_front() {
             Some(element) => element,
             None => Ok(None),
@@ -42,7 +42,7 @@ impl Stream for Buffer {
 impl StreamSink for Buffer {
     fn consume<T: Stream>(&mut self, source: &mut T) -> Result<()> {
         loop {
-            match source.next_element()? {
+            match source.next()? {
                 Some(element) => self.buffer.push_back(Ok(Some(element))),
                 None => break,
             }

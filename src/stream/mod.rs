@@ -50,7 +50,7 @@ pub type ResOpt = Result<Option<Element>>;
 ///
 pub trait Stream {
     /// Returns the next stream element
-    fn next_element(&mut self) -> ResOpt;
+    fn next(&mut self) -> ResOpt;
 }
 
 /// Stream endpoint
@@ -67,7 +67,7 @@ pub trait StreamSink {
 /// Stream sink that discards consumed contents
 pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
     loop {
-        match stream.next_element()? {
+        match stream.next()? {
             None => break,
             _ => (),
         };
@@ -297,9 +297,9 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 }
 
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
-    fn next_element(&mut self) -> ResOpt {
+    fn next(&mut self) -> ResOpt {
         loop {
-            if let Some(element) = self.stream.next_element()? {
+            if let Some(element) = self.stream.next()? {
                 let transition = self.meta.update(&element)?;
                 if let Some(element) = self.handle_element(element, transition)? {
                     return Ok(Some(element));

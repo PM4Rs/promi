@@ -588,7 +588,7 @@ impl<W: io::Write> XesWriter<W> {
 }
 
 impl<W: io::Write> StreamSink for XesWriter<W> {
-    fn consume<T: Stream>(&mut self, source: &mut T) -> Result<()> {
+    fn on_open(&mut self) -> Result<()> {
         // XML declaratioin
         let declaration = QxBytesDecl::new(b"1.0", Some(b"UTF-8"), None);
         self.bytes_written += self.writer.write_event(QxEvent::Decl(declaration))?;
@@ -599,17 +599,17 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
                 " This file has been generated with promi {} ",
                 crate::VERSION
             )
-            .as_str(),
+                .as_str(),
             " It conforms to the XML serialization of the XES standard (IEEE Std 1849-2016) ",
             " For log storage and management, see http://www.xes-standard.org. ",
             " promi is available at https://crates.io/crates/promi ",
         ]
-        .iter()
-        .map(|s| {
-            self.writer
-                .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
-        })
-        .fold(Ok(0), |s: Result<usize>, v| Ok(s? + v?))?;
+            .iter()
+            .map(|s| {
+                self.writer
+                    .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
+            })
+            .fold(Ok(0), |s: Result<usize>, v| Ok(s? + v?))?;
 
         // write contents
         let tag = b"log";
@@ -620,21 +620,26 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
 
         self.bytes_written += self.writer.write_event(QxEvent::Start(event))?;
 
-        loop {
-            self.bytes_written += match source.next()? {
-                Some(Element::Extension(e)) => e.write_xes(&mut self.writer)?,
-                Some(Element::Global(g)) => g.write_xes(&mut self.writer)?,
-                Some(Element::Classifier(c)) => c.write_xes(&mut self.writer)?,
-                Some(Element::Attribute(a)) => a.write_xes(&mut self.writer)?,
-                Some(Element::Trace(t)) => t.write_xes(&mut self.writer)?,
-                Some(Element::Event(e)) => e.write_xes(&mut self.writer)?,
-                None => break,
-            }
-        }
+        Ok(())
+    }
 
-        self.bytes_written += self
-            .writer
-            .write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
+    fn on_element(&mut self, element: Element) -> Result<()> {
+        self.bytes_written += match element {
+            Element::Extension(e) => e.write_xes(&mut self.writer)?,
+            Element::Global(g) => g.write_xes(&mut self.writer)?,
+            Element::Classifier(c) => c.write_xes(&mut self.writer)?,
+            Element::Attribute(a) => a.write_xes(&mut self.writer)?,
+            Element::Trace(t) => t.write_xes(&mut self.writer)?,
+            Element::Event(e) => e.write_xes(&mut self.writer)?
+        };
+
+        Ok(())
+    }
+
+    fn on_close(&mut self) -> Result<()> {
+        let event = QxEvent::End(QxBytesEnd::borrowed(b"log"));
+
+        self.bytes_written += self.writer.write_event(event)?;
         self.bytes_written += self.writer.write_event(QxEvent::Eof)?;
 
         Ok(())

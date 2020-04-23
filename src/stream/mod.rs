@@ -60,8 +60,36 @@ pub trait Stream {
 /// function is a good shortcut. It simply discards the stream's contents.
 ///
 pub trait StreamSink {
+    /// Optional callback  that is invoked when the stream is opened
+    fn on_open(&mut self) -> Result<()> { Ok(()) }
+
+    /// Callback that is invoked on each stream element
+    fn on_element(&mut self, element: Element) -> Result<()>;
+
+    /// Optional callback that is invoked once the stream is closed
+    fn on_close(&mut self) -> Result<()> { Ok(()) }
+
+    /// Optional callback that is invoked when an error occurs
+    fn on_error(&mut self, error: Error) -> Result<()> { Ok(()) }
+
     /// Invokes a stream as long as it provides new elements.
-    fn consume<T: Stream>(&mut self, source: &mut T) -> Result<()>;
+    fn consume<T: Stream>(&mut self, stream: &mut T) -> Result<()> {
+        self.on_open()?;
+
+        loop {
+            match stream.next() {
+                Ok(Some(element)) => self.on_element(element)?,
+                Ok(None) => break,
+                Err(error) => {
+                    self.on_error(error.clone())?;
+                    return Err(error)
+                }
+            };
+        }
+
+        self.on_close()?;
+        Ok(())
+    }
 }
 
 /// Stream sink that discards consumed contents
@@ -329,6 +357,91 @@ mod tests {
         consume(&mut buffer).unwrap();
 
         assert_eq!(buffer.len(), 0);
+    }
+
+    #[derive(Debug)]
+    struct TestSink {
+        ct_open: usize,
+        ct_element: usize,
+        ct_close: usize,
+        ct_error: usize
+    }
+
+    impl Default for TestSink {
+        fn default() -> Self {
+            TestSink {
+                ct_open: 0,
+                ct_element: 0,
+                ct_close: 0,
+                ct_error: 0
+            }
+        }
+    }
+
+    impl StreamSink for TestSink {
+        fn on_open(&mut self) -> Result<()> {
+            self.ct_open += 1;
+            Ok(())
+        }
+
+        fn on_element(&mut self, element: Element) -> Result<()> {
+            self.ct_element += 1;
+            Ok(())
+        }
+
+        fn on_close(&mut self) -> Result<()> {
+            self.ct_close += 1;
+            Ok(())
+        }
+
+        fn on_error(&mut self, error: Error) -> Result<()> {
+            self.ct_error += 1;
+            Ok(())
+        }
+    }
+
+    impl TestSink {
+        fn counts(&self) -> [usize; 4] {
+            [self.ct_open, self.ct_element, self.ct_close, self.ct_error]
+        }
+    }
+
+    fn _test_sink(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
+        let f = open_buffered(&path);
+        let mut reader = XesReader::from(f);
+        let mut sink = TestSink::default();
+
+        assert!(!(sink.consume(&mut reader).is_err() ^ expect_error));
+        assert_eq!(&sink.counts(), counts);
+    }
+
+    #[test]
+    fn test_sink() {
+        let param = [
+            ("book", "L1.xes", [1, 19, 1, 0]),
+            ("book", "L2.xes", [1, 26, 1, 0]),
+            ("book", "L3.xes", [1, 17, 1, 0]),
+            ("book", "L4.xes", [1, 160, 1, 0]),
+            ("book", "L5.xes", [1, 27, 1, 0]),
+            ("correct", "log_correct_attributes.xes", [1, 0, 1, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 9, 1, 0])
+        ];
+
+        for (d, f, counts) in param.iter() {
+            _test_sink(expand_static(&["xes", d, f]), counts, false);
+        }
+
+        let param = [
+            ("non_parsing", "boolean_incorrect_value.xes", [1, 5, 0, 1]),
+            ("non_parsing", "broken_xml.xes", [1, 18, 0, 1]),
+            ("non_parsing", "element_incorrect.xes", [1, 6, 0, 1]),
+            ("non_parsing", "no_log.xes", [1, 0, 0, 1]),
+            ("non_parsing", "global_incorrect_scope.xes", [1, 1, 0, 1])
+        ];
+
+        for (d, f, counts) in param.iter() {
+            _test_sink(expand_static(&["xes", d, f]), counts, true);
+        }
     }
 
     #[derive(Debug)]

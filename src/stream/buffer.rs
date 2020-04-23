@@ -13,7 +13,7 @@ use std::path::Path;
 // local
 use crate::error::{Error, Result};
 use crate::stream::xes::XesReader;
-use crate::stream::{ResOpt, Stream, StreamSink};
+use crate::stream::{ResOpt, Stream, StreamSink, Element};
 
 /// Consumes a stream and stores it in memory for further processing.
 ///
@@ -40,13 +40,13 @@ impl Stream for Buffer {
 }
 
 impl StreamSink for Buffer {
-    fn consume<T: Stream>(&mut self, source: &mut T) -> Result<()> {
-        loop {
-            match source.next()? {
-                Some(element) => self.buffer.push_back(Ok(Some(element))),
-                None => break,
-            }
-        }
+    fn on_element(&mut self, element: Element) -> Result<()> {
+        self.buffer.push_back(Ok(Some(element)));
+        Ok(())
+    }
+
+    fn on_error(&mut self, error: Error) -> Result<()> {
+        self.buffer.push_back(Err(error));
         Ok(())
     }
 }

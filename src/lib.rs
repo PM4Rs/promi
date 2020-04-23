@@ -48,6 +48,7 @@ pub mod stream;
 
 use std::convert::TryFrom;
 use stream::{buffer, Element, Stream, StreamSink};
+use crate::stream::ResOpt;
 
 /// promi's datetime type
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
@@ -256,18 +257,15 @@ impl Into<buffer::Buffer> for Log {
 }
 
 impl StreamSink for Log {
-    fn consume<T: Stream>(&mut self, source: &mut T) -> error::Result<()> {
-        loop {
-            match source.next()? {
-                Some(Element::Extension(e)) => self.extensions.push(e),
-                Some(Element::Global(g)) => self.globals.push(g),
-                Some(Element::Classifier(c)) => self.classifiers.push(c),
-                Some(Element::Attribute(a)) => self.attributes.push(a),
-                Some(Element::Trace(t)) => self.traces.push(t),
-                Some(Element::Event(e)) => self.events.push(e),
-                None => break,
-            }
-        }
+    fn on_element(&mut self, element: Element) -> error::Result<()> {
+        match element {
+            Element::Extension(e) => self.extensions.push(e),
+            Element::Global(g) => self.globals.push(g),
+            Element::Classifier(c) => self.classifiers.push(c),
+            Element::Attribute(a) => self.attributes.push(a),
+            Element::Trace(t) => self.traces.push(t),
+            Element::Event(e) => self.events.push(e)
+        };
 
         Ok(())
     }

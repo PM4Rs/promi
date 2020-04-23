@@ -17,7 +17,7 @@ use crate::stream::{ResOpt, Stream, StreamSink};
 
 /// Consumes a stream and stores it in memory for further processing.
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Buffer {
     buffer: VecDeque<ResOpt>,
 }
@@ -27,22 +27,6 @@ impl Default for Buffer {
         Self {
             buffer: VecDeque::new(),
         }
-    }
-}
-
-impl Clone for Buffer {
-    fn clone(&self) -> Self {
-        let mut other = Buffer::default();
-
-        for e in self.buffer.iter() {
-            match e {
-                Ok(Some(v)) => other.push(Ok(Some(v.clone()))),
-                Ok(None) => other.push(Ok(None)),
-                Err(e) => other.push(Err(Error::StreamError(format!("{:?}", e)))),
-            }
-        }
-
-        other
     }
 }
 

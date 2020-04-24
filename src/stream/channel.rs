@@ -61,10 +61,7 @@ pub struct StreamReceiver {
 
 impl Stream for StreamReceiver {
     fn next(&mut self) -> ResOpt {
-        match self.receiver.recv() {
-            Ok(element) => Ok(element?),
-            Err(_) => Ok(None),
-        }
+        self.receiver.recv()?
     }
 }
 
@@ -167,5 +164,28 @@ mod tests {
         for (d, f) in param.iter() {
             _test_channel(expand_static(&["xes", d, f]), true);
         }
+    }
+
+    #[test]
+    fn test_channel_error() {
+        let (mut s, r) = stream_channel();
+        drop(r);
+
+        assert!(s.on_close().is_err());
+
+        let (mut s, r) = sync_stream_channel(42);
+        drop(r);
+
+        assert!(s.on_close().is_err());
+
+        let (s, mut r) = stream_channel();
+        drop(s);
+
+        assert!(r.next().is_err());
+
+        let (s, mut r) = sync_stream_channel(0);
+        drop(s);
+
+        assert!(r.next().is_err());
     }
 }

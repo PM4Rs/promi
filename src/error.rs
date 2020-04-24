@@ -51,7 +51,7 @@ pub enum Error {
     XesError(String),
 
     #[error("{0}")]
-    SendError(String)
+    ChannelError(String)
 }
 
 // Manual conversion as quick-xml errors don't support cloning
@@ -71,7 +71,13 @@ impl From<std::string::FromUtf8Error> for Error {
 // Manual conversion to prevent recursion
 impl From<std::sync::mpsc::SendError<crate::stream::ResOpt>> for Error {
     fn from(error: std::sync::mpsc::SendError<crate::stream::ResOpt>) -> Self {
-        Error::SendError(format!("{:?}", error))
+        Error::ChannelError(format!("{:?}", error))
+    }
+}
+
+impl From<std::sync::mpsc::RecvError> for Error {
+    fn from(error: std::sync::mpsc::RecvError) -> Self {
+        Error::ChannelError(String::from("channel unexpectedly closed"))
     }
 }
 

@@ -62,16 +62,22 @@ pub trait Stream {
 ///
 pub trait StreamSink {
     /// Optional callback  that is invoked when the stream is opened
-    fn on_open(&mut self) -> Result<()> { Ok(()) }
+    fn on_open(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     /// Callback that is invoked on each stream element
     fn on_element(&mut self, element: Element) -> Result<()>;
 
     /// Optional callback that is invoked once the stream is closed
-    fn on_close(&mut self) -> Result<()> { Ok(()) }
+    fn on_close(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     /// Optional callback that is invoked when an error occurs
-    fn on_error(&mut self, _error: Error) -> Result<()> { Ok(()) }
+    fn on_error(&mut self, _error: Error) -> Result<()> {
+        Ok(())
+    }
 
     /// Invokes a stream as long as it provides new elements.
     fn consume<T: Stream>(&mut self, stream: &mut T) -> Result<()> {
@@ -83,7 +89,7 @@ pub trait StreamSink {
                 Ok(None) => break,
                 Err(error) => {
                     self.on_error(error.clone())?;
-                    return Err(error)
+                    return Err(error);
                 }
             };
         }
@@ -113,13 +119,17 @@ pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
 pub struct Duplicator<T: Stream, S: StreamSink> {
     stream: T,
     sink: S,
-    open: bool
+    open: bool,
 }
 
 impl<T: Stream, S: StreamSink> Duplicator<T, S> {
     /// Create a new duplicator
     pub fn new(stream: T, sink: S) -> Self {
-        Duplicator { stream, sink, open: false }
+        Duplicator {
+            stream,
+            sink,
+            open: false,
+        }
     }
 
     /// Drop duplicator and release sink
@@ -139,11 +149,11 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
             Ok(Some(element)) => {
                 self.sink.on_element(element.clone())?;
                 Ok(Some(element))
-            },
+            }
             Ok(None) => {
                 self.sink.on_close()?;
                 Ok(None)
-            },
+            }
             Err(error) => {
                 self.sink.on_error(error.clone())?;
                 Err(error)
@@ -412,7 +422,7 @@ mod tests {
         ct_open: usize,
         ct_element: usize,
         ct_close: usize,
-        ct_error: usize
+        ct_error: usize,
     }
 
     impl Default for TestSink {
@@ -421,7 +431,7 @@ mod tests {
                 ct_open: 0,
                 ct_element: 0,
                 ct_close: 0,
-                ct_error: 0
+                ct_error: 0,
             }
         }
     }
@@ -478,7 +488,7 @@ mod tests {
             ("book", "L4.xes", [1, 160, 1, 0]),
             ("book", "L5.xes", [1, 27, 1, 0]),
             ("correct", "log_correct_attributes.xes", [1, 0, 1, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 9, 1, 0])
+            ("correct", "event_correct_attributes.xes", [1, 9, 1, 0]),
         ];
 
         for (d, f, counts) in param.iter() {
@@ -490,7 +500,7 @@ mod tests {
             ("non_parsing", "broken_xml.xes", [1, 18, 0, 1]),
             ("non_parsing", "element_incorrect.xes", [1, 6, 0, 1]),
             ("non_parsing", "no_log.xes", [1, 0, 0, 1]),
-            ("non_parsing", "global_incorrect_scope.xes", [1, 1, 0, 1])
+            ("non_parsing", "global_incorrect_scope.xes", [1, 1, 0, 1]),
         ];
 
         for (d, f, counts) in param.iter() {
@@ -586,7 +596,7 @@ mod tests {
             ("book", "L4.xes", [1, 147, 441, 441]),
             ("book", "L5.xes", [1, 14, 92, 92]),
             ("correct", "log_correct_attributes.xes", [0, 0, 0, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 1, 4, 2])
+            ("correct", "event_correct_attributes.xes", [1, 1, 4, 2]),
         ];
 
         for (d, f, counts) in param.iter() {

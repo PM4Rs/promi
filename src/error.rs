@@ -50,7 +50,7 @@ pub enum Error {
     XesError(String),
 
     #[error("{0}")]
-    ChannelError(String)
+    ChannelError(String),
 }
 
 // Manual conversion as quick-xml errors don't support cloning

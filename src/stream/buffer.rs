@@ -13,7 +13,7 @@ use std::path::Path;
 // local
 use crate::error::{Error, Result};
 use crate::stream::xes::XesReader;
-use crate::stream::{ResOpt, Stream, StreamSink, Element};
+use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
 /// Consumes a stream and stores it in memory for further processing.
 ///

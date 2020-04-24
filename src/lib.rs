@@ -261,7 +261,7 @@ impl StreamSink for Log {
             Element::Classifier(c) => self.classifiers.push(c),
             Element::Attribute(a) => self.attributes.push(a),
             Element::Trace(t) => self.traces.push(t),
-            Element::Event(e) => self.events.push(e)
+            Element::Event(e) => self.events.push(e),
         };
 
         Ok(())

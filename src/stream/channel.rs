@@ -7,12 +7,12 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 // third party
 
 // local
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
 /// Represents the sending endpoint of an asynchronous channel
 pub struct StreamSender {
-    sender: Sender<ResOpt>
+    sender: Sender<ResOpt>,
 }
 
 impl StreamSink for StreamSender {
@@ -90,9 +90,9 @@ pub fn sync_stream_channel(bound: usize) -> (SyncStreamSender, StreamReceiver) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::{consume, Duplicator};
     use crate::stream::stats::Counter;
     use crate::stream::xes::XesReader;
+    use crate::stream::{consume, Duplicator};
     use crate::util::{expand_static, open_buffered};
     use std::path::PathBuf;
     use std::thread;
@@ -146,7 +146,7 @@ mod tests {
             ("book", "L4.xes"),
             ("book", "L5.xes"),
             ("correct", "log_correct_attributes.xes"),
-            ("correct", "event_correct_attributes.xes")
+            ("correct", "event_correct_attributes.xes"),
         ];
 
         for (d, f) in param.iter() {
@@ -158,7 +158,7 @@ mod tests {
             ("non_parsing", "broken_xml.xes"),
             ("non_parsing", "element_incorrect.xes"),
             ("non_parsing", "no_log.xes"),
-            ("non_parsing", "global_incorrect_scope.xes")
+            ("non_parsing", "global_incorrect_scope.xes"),
         ];
 
         for (d, f) in param.iter() {

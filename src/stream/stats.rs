@@ -147,7 +147,11 @@ mod tests {
             ("book", "L4.xes", [5, 2, 3, 3, 147, 0]),
             ("book", "L5.xes", [5, 2, 3, 3, 14, 0]),
             ("correct", "log_correct_attributes.xes", [0, 0, 0, 0, 0, 0]),
-            ("correct", "event_correct_attributes.xes", [2, 2, 1, 1, 1, 2]),
+            (
+                "correct",
+                "event_correct_attributes.xes",
+                [2, 2, 1, 1, 1, 2],
+            ),
         ];
 
         for (d, f, e) in param.iter() {

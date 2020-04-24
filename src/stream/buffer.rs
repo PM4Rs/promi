@@ -72,7 +72,10 @@ pub fn load_example(path: &[&str]) -> Buffer {
     let mut reader = XesReader::from(f);
     let mut buffer = Buffer::default();
 
-    buffer.consume(&mut reader).unwrap();
+    if buffer.consume(&mut reader).is_err() {
+        eprintln!("an error occurred when loading example: {:?}", &path);
+    }
+
     buffer
 }
 
@@ -109,5 +112,13 @@ mod tests {
 
         assert_eq!(buffer_a.len(), 0);
         assert_eq!(buffer_b.len(), 0);
+    }
+
+    #[test]
+    fn test_buffer_error() {
+        let mut buffer_a = load_example(&["xes", "non_parsing", "broken_xml.xes"]);
+        let mut buffer_b = Buffer::default();
+
+        assert!(buffer_b.consume(&mut buffer_a).is_err());
     }
 }

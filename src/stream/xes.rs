@@ -599,17 +599,17 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
                 " This file has been generated with promi {} ",
                 crate::VERSION
             )
-                .as_str(),
+            .as_str(),
             " It conforms to the XML serialization of the XES standard (IEEE Std 1849-2016) ",
             " For log storage and management, see http://www.xes-standard.org. ",
             " promi is available at https://crates.io/crates/promi ",
         ]
-            .iter()
-            .map(|s| {
-                self.writer
-                    .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
-            })
-            .fold(Ok(0), |s: Result<usize>, v| Ok(s? + v?))?;
+        .iter()
+        .map(|s| {
+            self.writer
+                .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
+        })
+        .fold(Ok(0), |s: Result<usize>, v| Ok(s? + v?))?;
 
         // write contents
         let tag = b"log";
@@ -630,7 +630,7 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
             Element::Classifier(c) => c.write_xes(&mut self.writer)?,
             Element::Attribute(a) => a.write_xes(&mut self.writer)?,
             Element::Trace(t) => t.write_xes(&mut self.writer)?,
-            Element::Event(e) => e.write_xes(&mut self.writer)?
+            Element::Event(e) => e.write_xes(&mut self.writer)?,
         };
 
         Ok(())

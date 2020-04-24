@@ -32,8 +32,6 @@
 //! ```
 //!
 
-#![warn(missing_docs)]
-
 #[macro_use]
 extern crate log as logging;
 #[macro_use]
@@ -47,8 +45,7 @@ pub mod error;
 pub mod stream;
 
 use std::convert::TryFrom;
-use stream::{buffer, Element, Stream, StreamSink};
-use crate::stream::ResOpt;
+use stream::{buffer, Element, StreamSink};
 
 /// promi's datetime type
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;

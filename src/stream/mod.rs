@@ -71,7 +71,7 @@ pub trait StreamSink {
     fn on_close(&mut self) -> Result<()> { Ok(()) }
 
     /// Optional callback that is invoked when an error occurs
-    fn on_error(&mut self, error: Error) -> Result<()> { Ok(()) }
+    fn on_error(&mut self, _error: Error) -> Result<()> { Ok(()) }
 
     /// Invokes a stream as long as it provides new elements.
     fn consume<T: Stream>(&mut self, stream: &mut T) -> Result<()> {
@@ -432,7 +432,7 @@ mod tests {
             Ok(())
         }
 
-        fn on_element(&mut self, element: Element) -> Result<()> {
+        fn on_element(&mut self, _: Element) -> Result<()> {
             self.ct_element += 1;
             Ok(())
         }
@@ -442,7 +442,7 @@ mod tests {
             Ok(())
         }
 
-        fn on_error(&mut self, error: Error) -> Result<()> {
+        fn on_error(&mut self, _: Error) -> Result<()> {
             self.ct_error += 1;
             Ok(())
         }
@@ -457,7 +457,7 @@ mod tests {
     fn _test_sink_duplicator(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
         let f = open_buffered(&path);
         let reader = XesReader::from(f);
-        let mut sink_1 = TestSink::default();
+        let sink_1 = TestSink::default();
         let mut sink_2 = TestSink::default();
         let mut duplicator = Duplicator::new(reader, sink_1);
 

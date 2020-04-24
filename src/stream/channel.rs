@@ -2,7 +2,7 @@
 //!
 
 // standard library
-use std::sync::mpsc::{channel, sync_channel, Receiver, RecvError, Sender, SyncSender};
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 
 // third party
 
@@ -99,12 +99,12 @@ mod tests {
 
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
-        let (mut s_t0_t1, mut r_t0_t1) = stream_channel();
-        let (mut s_t0_t2, mut r_t0_t2) = stream_channel();
+        let (s_t0_t1, mut r_t0_t1) = stream_channel();
+        let (s_t0_t2, mut r_t0_t2) = stream_channel();
 
         // channels from helper threads back to main thread
-        let (mut s_t1_t0, mut r_t1_t0) = sync_stream_channel(0);
-        let (mut s_t2_t0, mut r_t2_t0) = sync_stream_channel(64);
+        let (mut s_t1_t0, r_t1_t0) = sync_stream_channel(0);
+        let (mut s_t2_t0, r_t2_t0) = sync_stream_channel(64);
 
         // spawn helper threads
         let t_1 = thread::spawn(move || {

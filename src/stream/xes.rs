@@ -149,7 +149,7 @@ impl Attribute {
                 let tag_l = b"list";
                 let tag_v = b"values";
                 let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
-                let mut event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
+                let event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
 
                 event_l.push_attribute(("key", validate_name(self.key.as_str())?));
 
@@ -647,11 +647,13 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
 }
 
 impl<W: io::Write> XesWriter<W> {
-    fn inner(&mut self) -> &W {
+    /// Get a reference of the underlying writer
+    pub fn inner(&mut self) -> &W {
         self.writer.inner()
     }
 
-    fn into_inner(self) -> W {
+    /// Release the underlying writer
+    pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
 }
@@ -684,9 +686,8 @@ mod tests {
     use std::fs;
     use std::io;
     use std::io::Write;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::process::{Command, Output, Stdio};
-    use thiserror::private::PathAsDisplay;
 
     fn deserialize_dir(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
@@ -746,7 +747,7 @@ mod tests {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .unwrap();
+            .expect("xmllint installed?");
 
         child.stdin.as_mut().unwrap().write_all(xes).unwrap();
         child.wait_with_output().unwrap()
@@ -791,7 +792,7 @@ mod tests {
 
             buffer.consume(&mut XesReader::from(f)).unwrap();
 
-            for i in 0..2 {
+            for _ in 0..2 {
                 // serialize to XML
                 let bytes: Vec<u8> = Vec::new();
                 let mut writer = XesWriter::new(bytes, None, None);

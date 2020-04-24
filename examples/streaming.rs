@@ -4,11 +4,10 @@ use promi::util::expand_static;
 use promi::Log;
 use std::fs;
 use std::io;
-use std::path;
 
 /// Stream XES string to stdout
 ///
-/// XES string > XesReader | XesWriter > stdout
+/// XES string > XesReader | XesWriter > byte buffer > stdout
 ///
 fn example_1() {
     let s = r#"
@@ -40,12 +39,14 @@ fn example_1() {
         </log>
     "#;
 
+    let buffer: Vec<u8> = Vec::new();
     let mut reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
-    let mut writer = xes::XesWriter::new(io::stdout(), None, None);
+    let mut writer = xes::XesWriter::new(buffer, None, None);
 
-    println!("read XES string to stdout");
+    println!("parse XES string and render it to byte buffer");
     writer.consume(&mut reader).unwrap();
 
+    println!("{}", std::str::from_utf8(writer.inner()).unwrap());
     println!("\n");
 }
 
@@ -65,7 +66,7 @@ fn example_2() {
     println!("{:?}", &log);
 
     print!("convert log to stream buffer: ");
-    let mut buffer: buffer::Buffer = log.into();
+    let buffer: buffer::Buffer = log.into();
     println!("{:?}", &buffer);
 
     println!("stream buffer via observer to stdout:");

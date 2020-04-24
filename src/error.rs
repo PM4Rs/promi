@@ -9,7 +9,6 @@ use thiserror::Error;
 
 // local
 use crate::stream;
-use crate::stream::ResOpt;
 
 /// A common error type for promi
 #[derive(Error, Debug, Clone)]
@@ -76,7 +75,7 @@ impl From<std::sync::mpsc::SendError<crate::stream::ResOpt>> for Error {
 }
 
 impl From<std::sync::mpsc::RecvError> for Error {
-    fn from(error: std::sync::mpsc::RecvError) -> Self {
+    fn from(_: std::sync::mpsc::RecvError) -> Self {
         Error::ChannelError(String::from("channel unexpectedly closed"))
     }
 }

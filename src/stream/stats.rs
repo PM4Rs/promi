@@ -108,7 +108,7 @@ impl Handler for StreamStats {
         Ok(Some(trace))
     }
 
-    fn event(&mut self, event: Event, _in_trace: bool, meta: &MetaCache) -> Result<Option<Event>> {
+    fn event(&mut self, event: Event, _in_trace: bool, _meta: &MetaCache) -> Result<Option<Event>> {
         self.ct_event += 1;
         Ok(Some(event))
     }

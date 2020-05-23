@@ -21,7 +21,6 @@ pub mod xesext;
 pub mod xml_util;
 
 // standard library
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 // third party

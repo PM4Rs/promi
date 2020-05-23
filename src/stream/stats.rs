@@ -9,7 +9,7 @@ use std::fmt::{Debug, Formatter};
 
 // local
 use crate::error::Result;
-use crate::stream::{Element, Handler, MetaCache, ResOpt, Stream};
+use crate::stream::{Element, Handler, Meta, ResOpt, Stream};
 use crate::{Event, Trace};
 
 /// Count element types in an extensible event stream
@@ -103,12 +103,12 @@ impl Default for StreamStats {
 }
 
 impl Handler for StreamStats {
-    fn trace(&mut self, trace: Trace, _meta: &MetaCache) -> Result<Option<Trace>> {
+    fn trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
         self.ct_trace.push(trace.events.len());
         Ok(Some(trace))
     }
 
-    fn event(&mut self, event: Event, _in_trace: bool, _meta: &MetaCache) -> Result<Option<Event>> {
+    fn event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
         self.ct_event += 1;
         Ok(Some(event))
     }

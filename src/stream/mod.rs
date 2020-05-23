@@ -173,29 +173,29 @@ pub enum StreamState {
     Event,
 }
 
-/// Memorizes meta elements of an extensible event stream. Used by the observer
+/// Store meta elements of an extensible event stream. Used by the observer.
 #[derive(Debug, Clone)]
-pub struct MetaCache {
+pub struct Meta {
     state: StreamState,
-    extensions: HashMap<String, Extension>,
+    extensions: Vec<Extension>,
     globals: Vec<Global>,
-    classifiers: HashMap<String, Classifier>,
-    attributes: HashMap<String, Attribute>,
+    classifiers: Vec<Classifier>,
+    attributes: Vec<Attribute>,
 }
 
-impl Default for MetaCache {
+impl Default for Meta {
     fn default() -> Self {
         Self {
             state: StreamState::Extension,
-            extensions: HashMap::new(),
+            extensions: Vec::new(),
             globals: Vec::new(),
-            classifiers: HashMap::new(),
-            attributes: HashMap::new(),
+            classifiers: Vec::new(),
+            attributes: Vec::new(),
         }
     }
 }
 
-impl MetaCache {
+impl Meta {
     /// Update meta cache by given element
     ///
     /// If the given element contains meta data a copy of it is cached. If the triggered state
@@ -209,7 +209,7 @@ impl MetaCache {
         let new_state = match element {
             Element::Extension(e) => {
                 let extension = e.clone();
-                self.extensions.insert(extension.name.clone(), extension);
+                self.extensions.push(extension);
                 StreamState::Extension
             }
             Element::Global(g) => {
@@ -218,13 +218,13 @@ impl MetaCache {
             }
             Element::Classifier(c) => {
                 let classifier = c.clone();
-                self.classifiers.insert(classifier.name.clone(), classifier);
+                self.classifiers.push(classifier);
 
                 StreamState::Classifier
             }
             Element::Attribute(a) => {
                 let attribute = a.clone();
-                self.attributes.insert(attribute.key.clone(), attribute);
+                self.attributes.push(attribute);
 
                 StreamState::Attribute
             }
@@ -247,7 +247,7 @@ impl MetaCache {
     }
 }
 
-/// Gets registered with an observer wile providing callbacks
+/// Gets registered with an observer while providing callbacks
 ///
 /// All callback functions are optional. The `meta` callback is revoked once a transition from meta
 /// data to payload is passed. `trace` is revoked on all traces, `event` on all events regardless of
@@ -259,13 +259,13 @@ pub trait Handler {
     ///
     /// Invoked once per stream when transition from meta data to payload is passed.
     ///
-    fn meta(&mut self, _meta: &MetaCache) {}
+    fn meta(&mut self, _meta: &Meta) {}
 
     /// Handle a trace
     ///
     /// Invoked on each trace that occurs in a stream. Events contained toggle a separate callback.
     ///
-    fn trace(&mut self, trace: Trace, _meta: &MetaCache) -> Result<Option<Trace>> {
+    fn trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
         Ok(Some(trace))
     }
 
@@ -274,7 +274,7 @@ pub trait Handler {
     /// Invoked on each event in stream. Whether the element is part of a trace is indicated by
     /// `in_trace`.
     ///
-    fn event(&mut self, event: Event, _in_trace: bool, _meta: &MetaCache) -> Result<Option<Event>> {
+    fn event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
         Ok(Some(event))
     }
 }
@@ -288,7 +288,7 @@ pub trait Handler {
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
-    meta: MetaCache,
+    meta: Meta,
     handler: Vec<H>,
 }
 
@@ -297,7 +297,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     pub fn new(stream: I) -> Self {
         Observer {
             stream,
-            meta: MetaCache::default(),
+            meta: Meta::default(),
             handler: Vec::new(),
         }
     }
@@ -518,11 +518,11 @@ mod tests {
     }
 
     impl Handler for TestHandler {
-        fn meta(&mut self, _meta: &MetaCache) {
+        fn meta(&mut self, _meta: &Meta) {
             self.ct_meta += 1;
         }
 
-        fn trace(&mut self, trace: Trace, _meta: &MetaCache) -> Result<Option<Trace>> {
+        fn trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
             self.ct_trace += 1;
 
             if !self.filter || self.ct_trace % 2 == 0 {
@@ -536,7 +536,7 @@ mod tests {
             &mut self,
             event: Event,
             _in_trace: bool,
-            _meta: &MetaCache,
+            _meta: &Meta,
         ) -> Result<Option<Event>> {
             self.ct_event += 1;
 

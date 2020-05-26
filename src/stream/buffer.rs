@@ -4,15 +4,11 @@
 // standard library
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::fs;
-use std::io;
-use std::path::Path;
 
 // third party
 
 // local
 use crate::error::{Error, Result};
-use crate::stream::xes::XesReader;
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
 /// Consumes a stream and stores it in memory for further processing.
@@ -61,28 +57,32 @@ impl Buffer {
     }
 }
 
-pub fn load_example(path: &[&str]) -> Buffer {
-    let mut root = Path::new(env!("CARGO_MANIFEST_DIR")).join("static");
-
-    for p in path.iter() {
-        root = root.join(p);
-    }
-
-    let f = io::BufReader::new(fs::File::open(&root).unwrap());
-    let mut reader = XesReader::from(f);
-    let mut buffer = Buffer::default();
-
-    if buffer.consume(&mut reader).is_err() {
-        eprintln!("an error occurred when loading example: {:?}", &path);
-    }
-
-    buffer
-}
-
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::stream;
+    use crate::stream::xes::XesReader;
+    use std::fs;
+    use std::io;
+    use std::path::Path;
+
+    pub fn load_example(path: &[&str]) -> Buffer {
+        let mut root = Path::new(env!("CARGO_MANIFEST_DIR")).join("static");
+
+        for p in path.iter() {
+            root = root.join(p);
+        }
+
+        let f = io::BufReader::new(fs::File::open(&root).unwrap());
+        let mut reader = XesReader::from(f);
+        let mut buffer = Buffer::default();
+
+        if buffer.consume(&mut reader).is_err() {
+            eprintln!("an error occurred when loading example: {:?}", &root);
+        }
+
+        buffer
+    }
 
     #[test]
     fn test_buffer() {

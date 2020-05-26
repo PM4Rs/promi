@@ -407,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_consume() {
-        let mut buffer = buffer::load_example(&["xes", "book", "L1.xes"]);
+        let mut buffer = buffer::tests::load_example(&["xes", "book", "L1.xes"]);
 
         assert_eq!(buffer.len(), 19);
 
@@ -531,12 +531,7 @@ mod tests {
             }
         }
 
-        fn event(
-            &mut self,
-            event: Event,
-            _in_trace: bool,
-            _meta: &Meta,
-        ) -> Result<Option<Event>> {
+        fn event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
             self.ct_event += 1;
 
             if _in_trace {

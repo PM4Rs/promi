@@ -488,12 +488,6 @@ impl<R: io::BufRead> From<R> for XesReader<R> {
     }
 }
 
-// impl<R: io::Read> From<R> for XesReader<io::BufReader<R>> {
-//     fn from(reader: R) -> Self {
-//         XesReader::new(io::BufReader::new(reader))
-//     }
-// }
-
 impl<T: io::BufRead> Stream for XesReader<T> {
     fn next(&mut self) -> ResOpt {
         let mut top_level_element: Option<XesElement> = None;

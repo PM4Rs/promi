@@ -121,10 +121,10 @@ impl TryFrom<XesIntermediate> for Attribute {
 }
 
 impl Attribute {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes_kv<W: io::Write>(key: &String, value: &AttributeValue, writer: &mut QxWriter<W>) -> Result<usize> {
         let temp_string: String;
 
-        let (tag, value) = match &self.value {
+        let (tag, value) = match value {
             AttributeValue::String(value) => ("string", value.as_str()),
             AttributeValue::Date(value) => {
                 temp_string = value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
@@ -147,7 +147,7 @@ impl Attribute {
                 let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
                 let event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
 
-                event_l.push_attribute(("key", validate_name(self.key.as_str())?));
+                event_l.push_attribute(("key", validate_name(key.as_str())?));
 
                 bytes += writer.write_event(QxEvent::Start(event_l))?;
                 bytes += writer.write_event(QxEvent::Start(event_v))?;
@@ -166,10 +166,14 @@ impl Attribute {
         let tag = tag.as_bytes();
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
-        event.push_attribute(("key", validate_name(self.key.as_str())?));
+        event.push_attribute(("key", validate_name(key.as_str())?));
         event.push_attribute(("value", value));
 
         Ok(writer.write_event(QxEvent::Empty(event))?)
+    }
+
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+        Self::write_xes_kv(&self.key, &self.value, writer)
     }
 }
 
@@ -300,8 +304,8 @@ impl Meta {
             bytes += classifier.write_xes(writer)?;
         }
 
-        for attribute in self.attributes.iter() {
-            bytes += attribute.write_xes(writer)?;
+        for (key, value) in self.attributes.iter() {
+            bytes += Attribute::write_xes_kv(key, value, writer)?;
         }
 
         Ok(bytes)
@@ -541,7 +545,7 @@ impl<R: io::BufRead> XesReader<R> {
                 }
                 XesElement::Attribute(attribute) => {
                     if let Some(meta) = &mut self.meta {
-                        meta.attributes.push(attribute)
+                        meta.attributes.insert(attribute.key, attribute.value);
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", attribute)));
                     }
@@ -650,7 +654,7 @@ impl<W: io::Write> XesWriter<W> {
 
 impl<W: io::Write> StreamSink for XesWriter<W> {
     fn on_open(&mut self) -> Result<()> {
-        // XML declaratioin
+        // XML declaration
         let declaration = QxBytesDecl::new(b"1.0", Some(b"UTF-8"), None);
         self.bytes_written += self.writer.write_event(QxEvent::Decl(declaration))?;
 

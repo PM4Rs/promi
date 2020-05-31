@@ -47,6 +47,7 @@ pub mod stream;
 use error::{Error, Result};
 use std::convert::TryFrom;
 use stream::{buffer, Element, StreamSink};
+use std::collections::HashMap;
 
 /// promi's datetime type
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
@@ -159,8 +160,7 @@ pub struct Meta {
     extensions: Vec<Extension>,
     globals: Vec<Global>,
     classifiers: Vec<Classifier>,
-    // TODO replace by HashMap<String, Attribute>
-    attributes: Vec<Attribute>,
+    attributes: HashMap<String, AttributeValue>,
 }
 
 impl Default for Meta {
@@ -169,7 +169,7 @@ impl Default for Meta {
             extensions: Vec::new(),
             globals: Vec::new(),
             classifiers: Vec::new(),
-            attributes: Vec::new(),
+            attributes: HashMap::new(),
         }
     }
 }

@@ -45,6 +45,7 @@ pub mod error;
 pub mod stream;
 
 use error::{Error, Result};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use stream::{buffer, Element, StreamSink};
 
@@ -159,8 +160,7 @@ pub struct Meta {
     extensions: Vec<Extension>,
     globals: Vec<Global>,
     classifiers: Vec<Classifier>,
-    // TODO replace by HashMap<String, Attribute>
-    attributes: Vec<Attribute>,
+    attributes: HashMap<String, AttributeValue>,
 }
 
 impl Default for Meta {
@@ -169,7 +169,7 @@ impl Default for Meta {
             extensions: Vec::new(),
             globals: Vec::new(),
             classifiers: Vec::new(),
-            attributes: Vec::new(),
+            attributes: HashMap::new(),
         }
     }
 }
@@ -185,14 +185,13 @@ impl Default for Meta {
 ///
 #[derive(Debug, Clone)]
 pub struct Event {
-    // TODO replace by HashMap<String, Attribute>
-    attributes: Vec<Attribute>,
+    attributes: HashMap<String, AttributeValue>,
 }
 
 impl Default for Event {
     fn default() -> Self {
         Self {
-            attributes: Vec::new(),
+            attributes: HashMap::new(),
         }
     }
 }
@@ -207,15 +206,14 @@ impl Default for Event {
 ///
 #[derive(Debug, Clone)]
 pub struct Trace {
-    // TODO replace by HashMap<String, Attribute>
-    attributes: Vec<Attribute>,
+    attributes: HashMap<String, AttributeValue>,
     events: Vec<Event>,
 }
 
 impl Default for Trace {
     fn default() -> Self {
         Self {
-            attributes: Vec::new(),
+            attributes: HashMap::new(),
             events: Vec::new(),
         }
     }

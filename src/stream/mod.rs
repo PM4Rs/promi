@@ -27,15 +27,12 @@ use std::fmt::Debug;
 
 // local
 use crate::error::{Error, Result};
-use crate::{Attribute, Classifier, Event, Extension, Global, Trace};
+use crate::{Event, Meta, Trace};
 
 /// Atomic unit of an extensible event stream
 #[derive(Debug, Clone)]
 pub enum Element {
-    Extension(Extension),
-    Global(Global),
-    Classifier(Classifier),
-    Attribute(Attribute),
+    Meta(Meta),
     Trace(Trace),
     Event(Event),
 }
@@ -102,8 +99,8 @@ pub trait StreamSink {
 pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
     loop {
         match stream.next()? {
+            Some(_) => (),
             None => break,
-            _ => (),
         };
     }
 
@@ -161,91 +158,6 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
     }
 }
 
-/// State of an extensible event stream
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum StreamState {
-    Extension,
-    Global,
-    Classifier,
-    Attribute,
-    Trace,
-    Event,
-}
-
-/// Store meta elements of an extensible event stream. Used by the observer.
-#[derive(Debug, Clone)]
-pub struct Meta {
-    state: StreamState,
-    extensions: Vec<Extension>,
-    globals: Vec<Global>,
-    classifiers: Vec<Classifier>,
-    attributes: Vec<Attribute>,
-}
-
-impl Default for Meta {
-    fn default() -> Self {
-        Self {
-            state: StreamState::Extension,
-            extensions: Vec::new(),
-            globals: Vec::new(),
-            classifiers: Vec::new(),
-            attributes: Vec::new(),
-        }
-    }
-}
-
-impl Meta {
-    /// Update meta cache by given element
-    ///
-    /// If the given element contains meta data a copy of it is cached. If the triggered state
-    /// transition doesn't comply with the order obligated by the XES standard an error is thrown.
-    /// Otherwise, the state transition is returned.
-    ///
-    fn update(&mut self, element: &Element) -> Result<(StreamState, StreamState)> {
-        let old_state = self.state.clone();
-
-        // state transition
-        let new_state = match element {
-            Element::Extension(e) => {
-                let extension = e.clone();
-                self.extensions.push(extension);
-                StreamState::Extension
-            }
-            Element::Global(g) => {
-                self.globals.push(g.clone());
-                StreamState::Global
-            }
-            Element::Classifier(c) => {
-                let classifier = c.clone();
-                self.classifiers.push(classifier);
-
-                StreamState::Classifier
-            }
-            Element::Attribute(a) => {
-                let attribute = a.clone();
-                self.attributes.push(attribute);
-
-                StreamState::Attribute
-            }
-            Element::Trace(_trace) => StreamState::Trace,
-            Element::Event(_event) => StreamState::Event,
-        };
-
-        // check transition
-        if new_state < old_state {
-            return Err(Error::StateError {
-                got: new_state,
-                current: old_state,
-            });
-        }
-
-        // update state
-        self.state = new_state.clone();
-
-        Ok((old_state, new_state))
-    }
-}
-
 /// Gets registered with an observer while providing callbacks
 ///
 /// All callback functions are optional. The `meta` callback is revoked once a transition from meta
@@ -278,6 +190,14 @@ pub trait Handler {
     }
 }
 
+/// State of an extensible event stream
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum StreamState {
+    Meta,
+    Trace,
+    Event,
+}
+
 /// Observes a stream and revokes registered callbacks
 ///
 /// An observer preserves a state with copies of meta data elements. It manages an arbitrary number
@@ -287,7 +207,8 @@ pub trait Handler {
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
-    meta: Meta,
+    state: StreamState,
+    meta: Option<Meta>,
     handler: Vec<H>,
 }
 
@@ -296,7 +217,8 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     pub fn new(stream: I) -> Self {
         Observer {
             stream,
-            meta: Meta::default(),
+            state: StreamState::Meta,
+            meta: None,
             handler: Vec::new(),
         }
     }
@@ -312,27 +234,39 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         self.handler.pop()
     }
 
-    fn handle_element(
-        &mut self,
-        element: Element,
-        (old, new): (StreamState, StreamState),
-    ) -> ResOpt {
-        if old < StreamState::Trace && new >= StreamState::Trace {
-            for handler in self.handler.iter_mut() {
-                handler.meta(&self.meta);
-            }
+    fn update_state(&mut self, state: StreamState) -> Result<()> {
+        if self.state <= state {
+            self.state = state;
+            return Ok(());
         }
 
+        Err(Error::StateError(format!(
+            "invalid transition: {:?} --> {:?}",
+            self.state, state
+        )))
+    }
+
+    fn handle_element(&mut self, element: Element) -> ResOpt {
         let element = match element {
-            Element::Extension(e) => Element::Extension(e),
-            Element::Global(e) => Element::Global(e),
-            Element::Classifier(e) => Element::Classifier(e),
-            Element::Attribute(e) => Element::Attribute(e),
+            Element::Meta(meta) => {
+                self.update_state(StreamState::Meta)?;
+                for handler in self.handler.iter_mut() {
+                    handler.meta(&meta);
+                }
+                self.meta = Some(meta.clone());
+                Element::Meta(meta)
+            }
             Element::Trace(trace) => {
+                self.update_state(StreamState::Trace)?;
+
                 let mut trace = trace;
+                let meta = self
+                    .meta
+                    .as_ref()
+                    .ok_or(Error::StateError(format!("TODO proper error")))?;
 
                 for handler in self.handler.iter_mut() {
-                    trace = match handler.trace(trace, &self.meta)? {
+                    trace = match handler.trace(trace, meta)? {
                         Some(trace) => trace,
                         None => return Ok(None),
                     };
@@ -346,7 +280,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 
                         for handler in self.handler.iter_mut() {
                             event = match event {
-                                Some(event) => handler.event(event, true, &self.meta)?,
+                                Some(event) => handler.event(event, true, meta)?,
                                 None => None,
                             }
                         }
@@ -364,10 +298,16 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 Element::Trace(trace)
             }
             Element::Event(event) => {
+                self.update_state(StreamState::Event)?;
+
                 let mut event = event;
+                let meta = self
+                    .meta
+                    .as_ref()
+                    .ok_or(Error::StateError(format!("TODO proper error")))?;
 
                 for handler in self.handler.iter_mut() {
-                    event = match handler.event(event, false, &self.meta)? {
+                    event = match handler.event(event, false, meta)? {
                         Some(event) => event,
                         None => return Ok(None),
                     };
@@ -385,8 +325,7 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
     fn next(&mut self) -> ResOpt {
         loop {
             if let Some(element) = self.stream.next()? {
-                let transition = self.meta.update(&element)?;
-                if let Some(element) = self.handle_element(element, transition)? {
+                if let Some(element) = self.handle_element(element)? {
                     return Ok(Some(element));
                 }
             } else {
@@ -409,7 +348,7 @@ mod tests {
     fn test_consume() {
         let mut buffer = buffer::tests::load_example(&["xes", "book", "L1.xes"]);
 
-        assert_eq!(buffer.len(), 19);
+        assert_eq!(buffer.len(), 7);
 
         consume(&mut buffer).unwrap();
 
@@ -481,13 +420,14 @@ mod tests {
     #[test]
     fn test_sink_duplicator() {
         let param = [
-            ("book", "L1.xes", [1, 19, 1, 0]),
-            ("book", "L2.xes", [1, 26, 1, 0]),
-            ("book", "L3.xes", [1, 17, 1, 0]),
-            ("book", "L4.xes", [1, 160, 1, 0]),
-            ("book", "L5.xes", [1, 27, 1, 0]),
-            ("correct", "log_correct_attributes.xes", [1, 0, 1, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 9, 1, 0]),
+            // open element close error
+            ("book", "L1.xes", [1, 7, 1, 0]),
+            ("book", "L2.xes", [1, 14, 1, 0]),
+            ("book", "L3.xes", [1, 5, 1, 0]),
+            ("book", "L4.xes", [1, 148, 1, 0]),
+            ("book", "L5.xes", [1, 15, 1, 0]),
+            ("correct", "log_correct_attributes.xes", [1, 1, 1, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 4, 1, 0]),
         ];
 
         for (d, f, counts) in param.iter() {
@@ -495,11 +435,11 @@ mod tests {
         }
 
         let param = [
-            ("non_parsing", "boolean_incorrect_value.xes", [1, 5, 0, 1]),
-            ("non_parsing", "broken_xml.xes", [1, 18, 0, 1]),
-            ("non_parsing", "element_incorrect.xes", [1, 6, 0, 1]),
+            ("non_parsing", "boolean_incorrect_value.xes", [1, 0, 0, 1]),
+            ("non_parsing", "broken_xml.xes", [1, 6, 0, 1]),
+            ("non_parsing", "element_incorrect.xes", [1, 0, 0, 1]),
             ("non_parsing", "no_log.xes", [1, 0, 0, 1]),
-            ("non_parsing", "global_incorrect_scope.xes", [1, 1, 0, 1]),
+            ("non_parsing", "global_incorrect_scope.xes", [1, 0, 0, 1]),
         ];
 
         for (d, f, counts) in param.iter() {
@@ -589,7 +529,7 @@ mod tests {
             ("book", "L3.xes", [1, 4, 39, 39]),
             ("book", "L4.xes", [1, 147, 441, 441]),
             ("book", "L5.xes", [1, 14, 92, 92]),
-            ("correct", "log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("correct", "log_correct_attributes.xes", [1, 0, 0, 0]),
             ("correct", "event_correct_attributes.xes", [1, 1, 4, 2]),
         ];
 
@@ -606,7 +546,7 @@ mod tests {
             ("book", "L3.xes", [1, 2, 6, 6]),
             ("book", "L4.xes", [1, 73, 109, 109]),
             ("book", "L5.xes", [1, 7, 23, 23]),
-            ("correct", "log_correct_attributes.xes", [0, 0, 0, 0]),
+            ("correct", "log_correct_attributes.xes", [1, 0, 0, 0]),
             ("correct", "event_correct_attributes.xes", [1, 0, 1, 0]),
         ];
 
@@ -618,25 +558,26 @@ mod tests {
     #[test]
     fn test_observer_order_validation() {
         let names = [
+            // TODO test?
+            // "misplaced_extension_classifier.xes",
+            // "misplaced_global_attribute.xes",
+            // "misplaced_extension_attribute.xes",
+            // "misplaced_global_classifier.xes",
+            // "misplaced_classifier_attribute.xes",
+            // "misplaced_extension_global.xes",
             "misplaced_extension_event.xes",
-            "misplaced_extension_classifier.xes",
-            "misplaced_trace_event.xes",
-            "misplaced_global_attribute.xes",
+            // TODO separate test: "misplaced_trace_event.xes",
             "misplaced_extension_trace.xes",
             "misplaced_global_event.xes",
             "misplaced_classifier_event.xes",
-            "misplaced_extension_attribute.xes",
             "misplaced_attribute_event.xes",
-            "misplaced_global_classifier.xes",
-            "misplaced_classifier_attribute.xes",
             "misplaced_classifier_trace.xes",
             "misplaced_attribute_trace.xes",
             "misplaced_global_trace.xes",
-            "misplaced_extension_global.xes",
         ];
 
         for n in names.iter() {
-            let f = open_buffered(&expand_static(&["xes", "non_validating", n]));
+            let f = open_buffered(&expand_static(&["xes", "non_parsing", n]));
             let reader = XesReader::from(f);
             let mut observer = Observer::new(reader);
 

@@ -89,24 +89,24 @@ pub mod tests {
         let mut buffer_a = load_example(&["xes", "book", "L1.xes"]);
         let mut buffer_b = Buffer::default();
 
-        assert_eq!(buffer_a.len(), 19);
+        assert_eq!(buffer_a.len(), 7);
         assert_eq!(buffer_b.len(), 0);
 
         buffer_b.consume(&mut buffer_a).unwrap();
 
         assert_eq!(buffer_a.len(), 0);
-        assert_eq!(buffer_b.len(), 19);
+        assert_eq!(buffer_b.len(), 7);
 
         let event = crate::Event::default();
         buffer_a.push(Ok(Some(stream::Element::Event(event))));
 
         assert_eq!(buffer_a.len(), 1);
-        assert_eq!(buffer_b.len(), 19);
+        assert_eq!(buffer_b.len(), 7);
 
         buffer_b.consume(&mut buffer_a).unwrap();
 
         assert_eq!(buffer_a.len(), 0);
-        assert_eq!(buffer_b.len(), 20);
+        assert_eq!(buffer_b.len(), 8);
 
         stream::consume(&mut buffer_b).unwrap();
 

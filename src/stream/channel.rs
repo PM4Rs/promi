@@ -125,6 +125,7 @@ mod tests {
         let mut c_t1 = Counter::new(r_t1_t0);
         let mut c_t2 = Counter::new(r_t2_t0);
 
+        // TODO investigate!
         // execute pipeline (order is important!)
         assert_eq!(consume(&mut c_t0).is_err(), expect_error);
         assert_eq!(consume(&mut c_t1).is_err(), expect_error);

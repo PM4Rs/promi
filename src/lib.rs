@@ -44,6 +44,7 @@ extern crate thiserror;
 pub mod error;
 pub mod stream;
 
+use error::{Error, Result};
 use std::convert::TryFrom;
 use stream::{buffer, Element, StreamSink};
 
@@ -53,9 +54,9 @@ pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
 /// promi version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Data types supported by attributes
+/// Attribute value type
 #[derive(Debug, Clone)]
-pub enum AttributeType {
+pub enum AttributeValue {
     String(String),
     Date(DateTime),
     Int(i64),
@@ -63,29 +64,6 @@ pub enum AttributeType {
     Boolean(bool),
     Id(String),
     List(Vec<Attribute>),
-}
-
-/// Represents whether global or classifier target events or traces
-#[derive(Debug, Clone)]
-pub enum Scope {
-    Event,
-    Trace,
-}
-
-impl TryFrom<Option<String>> for Scope {
-    type Error = crate::error::Error;
-
-    fn try_from(value: Option<String>) -> Result<Self, Self::Error> {
-        if let Some(s) = value {
-            match s.as_str() {
-                "trace" => Ok(Scope::Trace),
-                "event" => Ok(Scope::Event),
-                other => Err(Self::Error::XesError(format!("Invalid scope: {:?}", other))),
-            }
-        } else {
-            Ok(Scope::Event)
-        }
-    }
 }
 
 /// Express atomic information
@@ -98,7 +76,39 @@ impl TryFrom<Option<String>> for Scope {
 #[derive(Debug, Clone)]
 pub struct Attribute {
     key: String,
-    value: AttributeType,
+    value: AttributeValue,
+}
+
+impl Attribute {
+    fn new(key: &str, attribute: AttributeValue) -> Attribute {
+        Attribute {
+            key: String::from(key),
+            value: attribute,
+        }
+    }
+}
+
+/// Represents whether global or classifier target events or traces
+#[derive(Debug, Clone)]
+pub enum Scope {
+    Event,
+    Trace,
+}
+
+impl TryFrom<Option<String>> for Scope {
+    type Error = Error;
+
+    fn try_from(value: Option<String>) -> Result<Self> {
+        if let Some(s) = value {
+            match s.as_str() {
+                "trace" => Ok(Scope::Trace),
+                "event" => Ok(Scope::Event),
+                other => Err(Self::Error::XesError(format!("Invalid scope: {:?}", other))),
+            }
+        } else {
+            Ok(Scope::Event)
+        }
+    }
 }
 
 /// Provide semantics for sets of attributes
@@ -143,6 +153,27 @@ pub struct Classifier {
     keys: String,
 }
 
+/// Holds meta information of an extensible event stream
+#[derive(Debug, Clone)]
+pub struct Meta {
+    extensions: Vec<Extension>,
+    globals: Vec<Global>,
+    classifiers: Vec<Classifier>,
+    // TODO replace by HashMap<String, Attribute>
+    attributes: Vec<Attribute>,
+}
+
+impl Default for Meta {
+    fn default() -> Self {
+        Meta {
+            extensions: Vec::new(),
+            globals: Vec::new(),
+            classifiers: Vec::new(),
+            attributes: Vec::new(),
+        }
+    }
+}
+
 /// Represents an atomic granule of activity that has been observed
 ///
 /// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
@@ -154,6 +185,7 @@ pub struct Classifier {
 ///
 #[derive(Debug, Clone)]
 pub struct Event {
+    // TODO replace by HashMap<String, Attribute>
     attributes: Vec<Attribute>,
 }
 
@@ -175,6 +207,7 @@ impl Default for Event {
 ///
 #[derive(Debug, Clone)]
 pub struct Trace {
+    // TODO replace by HashMap<String, Attribute>
     attributes: Vec<Attribute>,
     events: Vec<Event>,
 }
@@ -200,10 +233,7 @@ impl Default for Trace {
 ///
 #[derive(Debug, Clone)]
 pub struct Log {
-    extensions: Vec<Extension>,
-    globals: Vec<Global>,
-    classifiers: Vec<Classifier>,
-    attributes: Vec<Attribute>,
+    meta: Meta,
     traces: Vec<Trace>,
     events: Vec<Event>,
 }
@@ -211,10 +241,7 @@ pub struct Log {
 impl Default for Log {
     fn default() -> Self {
         Self {
-            extensions: Vec::new(),
-            globals: Vec::new(),
-            classifiers: Vec::new(),
-            attributes: Vec::new(),
+            meta: Meta::default(),
             traces: Vec::new(),
             events: Vec::new(),
         }
@@ -225,21 +252,7 @@ impl Into<buffer::Buffer> for Log {
     fn into(self) -> buffer::Buffer {
         let mut buffer = buffer::Buffer::default();
 
-        for extension in self.extensions {
-            buffer.push(Ok(Some(Element::Extension(extension))));
-        }
-
-        for global in self.globals {
-            buffer.push(Ok(Some(Element::Global(global))));
-        }
-
-        for classifier in self.classifiers {
-            buffer.push(Ok(Some(Element::Classifier(classifier))));
-        }
-
-        for attribute in self.attributes {
-            buffer.push(Ok(Some(Element::Attribute(attribute))));
-        }
+        buffer.push(Ok(Some(Element::Meta(self.meta))));
 
         for trace in self.traces {
             buffer.push(Ok(Some(Element::Trace(trace))));
@@ -256,12 +269,9 @@ impl Into<buffer::Buffer> for Log {
 impl StreamSink for Log {
     fn on_element(&mut self, element: Element) -> error::Result<()> {
         match element {
-            Element::Extension(e) => self.extensions.push(e),
-            Element::Global(g) => self.globals.push(g),
-            Element::Classifier(c) => self.classifiers.push(c),
-            Element::Attribute(a) => self.attributes.push(a),
-            Element::Trace(t) => self.traces.push(t),
-            Element::Event(e) => self.events.push(e),
+            Element::Meta(meta) => self.meta = meta,
+            Element::Trace(trace) => self.traces.push(trace),
+            Element::Event(event) => self.events.push(event),
         };
 
         Ok(())

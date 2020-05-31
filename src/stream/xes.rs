@@ -66,7 +66,8 @@ use crate::stream::xml_util::{
 };
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 use crate::{
-    Attribute, AttributeType, Classifier, DateTime, Event, Extension, Global, Log, Scope, Trace,
+    Attribute, AttributeValue, Classifier, DateTime, Event, Extension, Global, Log, Meta, Scope,
+    Trace,
 };
 
 #[derive(Debug)]
@@ -94,14 +95,12 @@ impl TryFrom<XesIntermediate> for Attribute {
         let val_str = intermediate.get_attr("value");
 
         let value = match intermediate.type_name.as_str() {
-            "string" => Ok(AttributeType::String(val_str?.clone())),
-            "date" => Ok(AttributeType::Date(DateTime::parse_from_rfc3339(
-                val_str?.as_str(),
-            )?)),
-            "int" => Ok(AttributeType::Int(val_str?.parse::<i64>()?)),
-            "float" => Ok(AttributeType::Float(val_str?.parse::<f64>()?)),
-            "boolean" => Ok(AttributeType::Boolean(parse_bool(&val_str?.as_str())?)),
-            "id" => Ok(AttributeType::Id(val_str?.clone())),
+            "string" => AttributeValue::String(val_str?.clone()),
+            "date" => AttributeValue::Date(DateTime::parse_from_rfc3339(val_str?.as_str())?),
+            "int" => AttributeValue::Int(val_str?.parse::<i64>()?),
+            "float" => AttributeValue::Float(val_str?.parse::<f64>()?),
+            "boolean" => AttributeValue::Boolean(parse_bool(&val_str?.as_str())?),
+            "id" => AttributeValue::Id(val_str?.clone()),
             "list" => {
                 let mut attributes: Vec<Attribute> = Vec::new();
 
@@ -112,15 +111,12 @@ impl TryFrom<XesIntermediate> for Attribute {
                     }
                 }
 
-                Ok(AttributeType::List(attributes))
+                AttributeValue::List(attributes)
             }
-            attr_key => Err(Error::KeyError(format!("unknown attribute {}", attr_key))),
+            attr_key => return Err(Error::KeyError(format!("unknown attribute {}", attr_key))),
         };
 
-        Ok(Attribute {
-            key: key_str,
-            value: value?,
-        })
+        Ok(Attribute::new(key_str.as_str(), value))
     }
 }
 
@@ -129,22 +125,22 @@ impl Attribute {
         let temp_string: String;
 
         let (tag, value) = match &self.value {
-            AttributeType::String(value) => ("string", value.as_str()),
-            AttributeType::Date(value) => {
+            AttributeValue::String(value) => ("string", value.as_str()),
+            AttributeValue::Date(value) => {
                 temp_string = value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
                 ("date", temp_string.as_str())
             }
-            AttributeType::Int(value) => {
+            AttributeValue::Int(value) => {
                 temp_string = value.to_string();
                 ("int", temp_string.as_str())
             }
-            AttributeType::Float(value) => {
+            AttributeValue::Float(value) => {
                 temp_string = value.to_string();
                 ("float", temp_string.as_str())
             }
-            AttributeType::Boolean(value) => ("boolean", if *value { "true" } else { "false" }),
-            AttributeType::Id(value) => ("id", value.as_str()),
-            AttributeType::List(attributes) => {
+            AttributeValue::Boolean(value) => ("boolean", if *value { "true" } else { "false" }),
+            AttributeValue::Id(value) => ("id", value.as_str()),
+            AttributeValue::List(attributes) => {
                 let mut bytes: usize = 0;
                 let tag_l = b"list";
                 let tag_v = b"values";
@@ -288,6 +284,30 @@ impl Classifier {
     }
 }
 
+impl Meta {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+        let mut bytes: usize = 0;
+
+        for extension in self.extensions.iter() {
+            bytes += extension.write_xes(writer)?;
+        }
+
+        for global in self.globals.iter() {
+            bytes += global.write_xes(writer)?;
+        }
+
+        for classifier in self.classifiers.iter() {
+            bytes += classifier.write_xes(writer)?;
+        }
+
+        for attribute in self.attributes.iter() {
+            bytes += attribute.write_xes(writer)?;
+        }
+
+        Ok(bytes)
+    }
+}
+
 impl TryFrom<XesIntermediate> for Event {
     type Error = Error;
 
@@ -391,10 +411,8 @@ impl TryFrom<XesIntermediate> for Log {
         }
 
         Ok(Log {
-            extensions,
-            globals,
-            classifiers,
-            attributes,
+            // TODO replace dummy
+            meta: Meta::default(),
             traces,
             events,
         })
@@ -470,6 +488,9 @@ pub struct XesReader<R: io::BufRead> {
     reader: QxReader<R>,
     buffer: Vec<u8>,
     stack: Vec<XesIntermediate>,
+    cache: Option<Element>,
+    meta: Option<Meta>,
+    empty: bool,
 }
 
 impl<R: io::BufRead> XesReader<R> {
@@ -478,6 +499,9 @@ impl<R: io::BufRead> XesReader<R> {
             reader: QxReader::from_reader(reader),
             buffer: Vec::new(),
             stack: Vec::new(),
+            cache: None,
+            meta: Some(Meta::default()),
+            empty: true,
         }
     }
 }
@@ -488,52 +512,107 @@ impl<R: io::BufRead> From<R> for XesReader<R> {
     }
 }
 
+impl<R: io::BufRead> XesReader<R> {
+    fn update(&mut self, intermediate: XesIntermediate) -> ResOpt {
+        let element = XesElement::try_from(intermediate)?;
+
+        if self.stack.len() <= 1 {
+            match element {
+                XesElement::Extension(extension) => {
+                    if let Some(meta) = &mut self.meta {
+                        meta.extensions.push(extension);
+                    } else {
+                        return Err(Error::StateError(format!("unexpected: {:?}", extension)));
+                    }
+                }
+                XesElement::Global(global) => {
+                    if let Some(meta) = &mut self.meta {
+                        meta.globals.push(global);
+                    } else {
+                        return Err(Error::StateError(format!("unexpected: {:?}", global)));
+                    }
+                }
+                XesElement::Classifier(classifier) => {
+                    if let Some(meta) = &mut self.meta {
+                        meta.classifiers.push(classifier)
+                    } else {
+                        return Err(Error::StateError(format!("unexpected: {:?}", classifier)));
+                    }
+                }
+                XesElement::Attribute(attribute) => {
+                    if let Some(meta) = &mut self.meta {
+                        meta.attributes.push(attribute)
+                    } else {
+                        return Err(Error::StateError(format!("unexpected: {:?}", attribute)));
+                    }
+                }
+                XesElement::Value(value) => {
+                    return Err(Error::StateError(format!("unexpected: {:?}", value)))
+                }
+                XesElement::Trace(trace) => {
+                    if let Some(meta) = self.meta.take() {
+                        self.cache = Some(Element::Trace(trace));
+                        return Ok(Some(Element::Meta(meta)));
+                    } else {
+                        return Ok(Some(Element::Trace(trace)));
+                    }
+                }
+                XesElement::Event(event) => {
+                    if let Some(meta) = self.meta.take() {
+                        self.cache = Some(Element::Event(event));
+                        return Ok(Some(Element::Meta(meta)));
+                    } else {
+                        return Ok(Some(Element::Event(event)));
+                    }
+                }
+                XesElement::Log(_) => {
+                    self.empty = false;
+                    if let Some(meta) = self.meta.take() {
+                        return Ok(Some(Element::Meta(meta)));
+                    }
+                }
+            }
+        } else {
+            match self.stack.last_mut() {
+                Some(intermediate) => intermediate.add_element(element),
+                _ => (),
+            }
+        }
+
+        Ok(None)
+    }
+}
+
 impl<T: io::BufRead> Stream for XesReader<T> {
     fn next(&mut self) -> ResOpt {
-        let mut top_level_element: Option<XesElement> = None;
+        if let Some(element) = self.cache.take() {
+            return Ok(Some(element));
+        }
 
         loop {
             match self.reader.read_event(&mut self.buffer) {
                 Ok(QxEvent::Start(event)) => self.stack.push(XesIntermediate::from_event(event)?),
                 Ok(QxEvent::End(_event)) => {
                     let intermediate = self.stack.pop().unwrap();
-                    let element = XesElement::try_from(intermediate)?;
-
-                    if self.stack.len() == 1 {
-                        top_level_element = Some(element);
-                        break;
-                    } else {
-                        match self.stack.last_mut() {
-                            Some(intermediate) => intermediate.add_element(element),
-                            None => break,
-                        }
+                    if let Some(element) = self.update(intermediate)? {
+                        return Ok(Some(element));
                     }
                 }
                 Ok(QxEvent::Empty(event)) => {
-                    let element = {
-                        let intermediate = XesIntermediate::from_event(event)?;
-                        XesElement::try_from(intermediate)?
-                    };
-
-                    if self.stack.len() == 1 {
-                        top_level_element = Some(element);
-                        break;
-                    } else {
-                        match self.stack.last_mut() {
-                            Some(intermediate) => intermediate.add_element(element),
-                            None => break,
-                        }
+                    let intermediate = XesIntermediate::from_event(event)?;
+                    if let Some(element) = self.update(intermediate)? {
+                        return Ok(Some(element));
                     }
                 }
-                Err(e) => {
+                Err(error) => {
                     return Err(Error::XesError(format!(
                         "Error at position {}: {:?}",
                         self.reader.buffer_position(),
-                        e
+                        error
                     )));
                 }
                 Ok(QxEvent::Eof) => {
-                    if self.buffer.len() == 0 {
+                    if self.empty {
                         return Err(Error::XesError(String::from("No root element found")));
                     }
                     break;
@@ -544,19 +623,7 @@ impl<T: io::BufRead> Stream for XesReader<T> {
             self.buffer.clear();
         }
 
-        match top_level_element {
-            Some(XesElement::Extension(e)) => Ok(Some(Element::Extension(e))),
-            Some(XesElement::Global(g)) => Ok(Some(Element::Global(g))),
-            Some(XesElement::Classifier(c)) => Ok(Some(Element::Classifier(c))),
-            Some(XesElement::Attribute(a)) => Ok(Some(Element::Attribute(a))),
-            Some(XesElement::Trace(t)) => Ok(Some(Element::Trace(t))),
-            Some(XesElement::Event(e)) => Ok(Some(Element::Event(e))),
-            Some(e) => Err(Error::XesError(format!(
-                "XES element is not supported for streaming: {:?}",
-                e
-            ))),
-            None => Ok(None),
-        }
+        Ok(None)
     }
 }
 
@@ -619,12 +686,9 @@ impl<W: io::Write> StreamSink for XesWriter<W> {
 
     fn on_element(&mut self, element: Element) -> Result<()> {
         self.bytes_written += match element {
-            Element::Extension(e) => e.write_xes(&mut self.writer)?,
-            Element::Global(g) => g.write_xes(&mut self.writer)?,
-            Element::Classifier(c) => c.write_xes(&mut self.writer)?,
-            Element::Attribute(a) => a.write_xes(&mut self.writer)?,
-            Element::Trace(t) => t.write_xes(&mut self.writer)?,
-            Element::Event(e) => e.write_xes(&mut self.writer)?,
+            Element::Meta(meta) => meta.write_xes(&mut self.writer)?,
+            Element::Trace(trace) => trace.write_xes(&mut self.writer)?,
+            Element::Event(event) => event.write_xes(&mut self.writer)?,
         };
 
         Ok(())
@@ -798,7 +862,9 @@ mod tests {
 
                 // deserialize from XML
                 let mut reader = XesReader::from(io::Cursor::new(bytes));
-                buffer.consume(&mut reader).unwrap();
+                buffer
+                    .consume(&mut reader)
+                    .expect(format!("{:?}", p.path()).as_str());
             }
 
             for (s1, s2) in snapshots.iter().zip(&snapshots[1..]) {

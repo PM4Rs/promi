@@ -47,7 +47,7 @@
 //!
 
 // standard library
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::io;
@@ -121,19 +121,6 @@ impl TryFrom<XesIntermediate> for Attribute {
 }
 
 impl Attribute {
-    fn sorted<'a>(
-        attributes: &'a HashMap<String, AttributeValue>,
-    ) -> Vec<(&'a String, &'a AttributeValue)> {
-        let mut view: Vec<(&'a String, &'a AttributeValue)> = Vec::new();
-
-        for (key, value) in attributes.iter() {
-            view.push((key, value));
-        }
-
-        view.sort_by_key(|t| t.0);
-        view
-    }
-
     fn write_xes_kv<W: io::Write>(
         key: &String,
         value: &AttributeValue,
@@ -321,7 +308,7 @@ impl Meta {
             bytes += classifier.write_xes(writer)?;
         }
 
-        for (key, value) in Attribute::sorted(&self.attributes) {
+        for (key, value) in self.attributes.iter() {
             bytes += Attribute::write_xes_kv(key, value, writer)?;
         }
 
@@ -333,7 +320,7 @@ impl TryFrom<XesIntermediate> for Event {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
+        let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
 
         for element in intermediate.elements {
             match element {
@@ -356,7 +343,7 @@ impl Event {
 
         bytes += writer.write_event(QxEvent::Start(event))?;
 
-        for (key, value) in Attribute::sorted(&self.attributes) {
+        for (key, value) in self.attributes.iter() {
             bytes += Attribute::write_xes_kv(key, value, writer)?;
         }
 
@@ -370,7 +357,7 @@ impl TryFrom<XesIntermediate> for Trace {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
+        let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
         let mut traces: Vec<Event> = Vec::new();
 
         for element in intermediate.elements {
@@ -398,7 +385,7 @@ impl Trace {
 
         bytes += writer.write_event(QxEvent::Start(event))?;
 
-        for (key, value) in Attribute::sorted(&self.attributes) {
+        for (key, value) in self.attributes.iter() {
             bytes += Attribute::write_xes_kv(key, value, writer)?;
         }
 

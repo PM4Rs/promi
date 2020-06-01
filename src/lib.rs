@@ -45,7 +45,7 @@ pub mod error;
 pub mod stream;
 
 use error::{Error, Result};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use stream::{buffer, Element, StreamSink};
 
@@ -160,7 +160,7 @@ pub struct Meta {
     extensions: Vec<Extension>,
     globals: Vec<Global>,
     classifiers: Vec<Classifier>,
-    attributes: HashMap<String, AttributeValue>,
+    attributes: BTreeMap<String, AttributeValue>,
 }
 
 impl Default for Meta {
@@ -169,7 +169,7 @@ impl Default for Meta {
             extensions: Vec::new(),
             globals: Vec::new(),
             classifiers: Vec::new(),
-            attributes: HashMap::new(),
+            attributes: BTreeMap::new(),
         }
     }
 }
@@ -185,13 +185,13 @@ impl Default for Meta {
 ///
 #[derive(Debug, Clone)]
 pub struct Event {
-    attributes: HashMap<String, AttributeValue>,
+    attributes: BTreeMap<String, AttributeValue>,
 }
 
 impl Default for Event {
     fn default() -> Self {
         Self {
-            attributes: HashMap::new(),
+            attributes: BTreeMap::new(),
         }
     }
 }
@@ -206,14 +206,14 @@ impl Default for Event {
 ///
 #[derive(Debug, Clone)]
 pub struct Trace {
-    attributes: HashMap<String, AttributeValue>,
+    attributes: BTreeMap<String, AttributeValue>,
     events: Vec<Event>,
 }
 
 impl Default for Trace {
     fn default() -> Self {
         Self {
-            attributes: HashMap::new(),
+            attributes: BTreeMap::new(),
             events: Vec::new(),
         }
     }

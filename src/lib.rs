@@ -81,9 +81,9 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    fn new(key: &str, attribute: AttributeValue) -> Attribute {
+    fn new(key: String, attribute: AttributeValue) -> Attribute {
         Attribute {
-            key: String::from(key),
+            key,
             value: attribute,
         }
     }

@@ -116,7 +116,7 @@ impl TryFrom<XesIntermediate> for Attribute {
             attr_key => return Err(Error::KeyError(format!("unknown attribute {}", attr_key))),
         };
 
-        Ok(Attribute::new(key_str.as_str(), value))
+        Ok(Attribute::new(key_str, value))
     }
 }
 

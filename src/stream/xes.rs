@@ -47,27 +47,26 @@
 //!
 
 // standard library
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::io;
 
 // third party
+use quick_xml::{Reader as QxReader, Writer as QxWriter};
 use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
-use quick_xml::{Reader as QxReader, Writer as QxWriter};
 
 // local
-use crate::error::{Error, Result};
+use crate::{DateTime, Error, Result};
+use crate::stream::{
+    Attribute, AttributeValue, Classifier, Element, Event, Extension, Global, Log, Meta, ResOpt,
+    Scope, Stream, StreamSink, Trace,
+};
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
-};
-use crate::stream::{Element, ResOpt, Stream, StreamSink};
-use crate::{
-    Attribute, AttributeValue, Classifier, DateTime, Event, Extension, Global, Log, Meta, Scope,
-    Trace,
 };
 
 #[derive(Debug)]
@@ -104,10 +103,9 @@ impl TryFrom<XesIntermediate> for Attribute {
             "list" => {
                 let mut attributes: Vec<Attribute> = Vec::new();
 
-                for values in intermediate.elements {
-                    match values {
-                        XesElement::Value(v) => attributes.extend(v.attributes),
-                        _ => ( /* ignore */ ),
+                for element in intermediate.elements {
+                    if let XesElement::Value(value) = element {
+                        attributes.extend(value.attributes);
                     }
                 }
 
@@ -122,7 +120,7 @@ impl TryFrom<XesIntermediate> for Attribute {
 
 impl Attribute {
     fn write_xes_kv<W: io::Write>(
-        key: &String,
+        key: &str,
         value: &AttributeValue,
         writer: &mut QxWriter<W>,
     ) -> Result<usize> {
@@ -151,7 +149,7 @@ impl Attribute {
                 let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
                 let event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
 
-                event_l.push_attribute(("key", validate_name(key.as_str())?));
+                event_l.push_attribute(("key", validate_name(key)?));
 
                 bytes += writer.write_event(QxEvent::Start(event_l))?;
                 bytes += writer.write_event(QxEvent::Start(event_v))?;
@@ -170,7 +168,7 @@ impl Attribute {
         let tag = tag.as_bytes();
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
-        event.push_attribute(("key", validate_name(key.as_str())?));
+        event.push_attribute(("key", validate_name(key)?));
         event.push_attribute(("value", value));
 
         Ok(writer.write_event(QxEvent::Empty(event))?)
@@ -399,23 +397,26 @@ impl Trace {
     }
 }
 
+// The following code is in fact useless for now as all log components are emitted individually when
+// streaming and are not cached in the intermediate. Hence, the given intermediate is empty
+// resulting in an empty log. However, when one decides to implement a non-streaming XES parser,
+// the code below may be useful.
 impl TryFrom<XesIntermediate> for Log {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let mut extensions: Vec<Extension> = Vec::new();
-        let mut globals: Vec<Global> = Vec::new();
-        let mut classifiers: Vec<Classifier> = Vec::new();
-        let mut attributes: Vec<Attribute> = Vec::new();
+        let mut meta = Meta::default();
         let mut traces: Vec<Trace> = Vec::new();
         let mut events: Vec<Event> = Vec::new();
 
         for element in intermediate.elements {
             match element {
-                XesElement::Extension(extension) => extensions.push(extension),
-                XesElement::Global(global) => globals.push(global),
-                XesElement::Classifier(classifier) => classifiers.push(classifier),
-                XesElement::Attribute(attribute) => attributes.push(attribute),
+                XesElement::Extension(extension) => meta.extensions.push(extension),
+                XesElement::Global(global) => meta.globals.push(global),
+                XesElement::Classifier(classifier) => meta.classifiers.push(classifier),
+                XesElement::Attribute(attribute) => {
+                    meta.attributes.insert(attribute.key, attribute.value);
+                }
                 XesElement::Trace(trace) => traces.push(trace),
                 XesElement::Event(event) => events.push(event),
                 other => warn!("unexpected child element of log: {:?}, ignore", other),
@@ -423,8 +424,7 @@ impl TryFrom<XesIntermediate> for Log {
         }
 
         Ok(Log {
-            // TODO replace dummy
-            meta: Meta::default(),
+            meta,
             traces,
             events,
         })
@@ -584,11 +584,8 @@ impl<R: io::BufRead> XesReader<R> {
                     }
                 }
             }
-        } else {
-            match self.stack.last_mut() {
-                Some(intermediate) => intermediate.add_element(element),
-                _ => (),
-            }
+        } else if let Some(intermediate) = self.stack.last_mut() {
+            intermediate.add_element(element);
         }
 
         Ok(None)
@@ -597,13 +594,19 @@ impl<R: io::BufRead> XesReader<R> {
 
 impl<T: io::BufRead> Stream for XesReader<T> {
     fn next(&mut self) -> ResOpt {
+        // At the transition of the meta data fields to actual stream data the first trace/event
+        // will be cached and emitted in the next iteration. This is supposed to happen once per
+        // stream at max.
         if let Some(element) = self.cache.take() {
             return Ok(Some(element));
         }
 
         loop {
             match self.reader.read_event(&mut self.buffer) {
-                Ok(QxEvent::Start(event)) => self.stack.push(XesIntermediate::from_event(event)?),
+                Ok(QxEvent::Start(event)) => {
+                    let intermediate = XesIntermediate::from_event(event)?;
+                    self.stack.push(intermediate);
+                }
                 Ok(QxEvent::End(_event)) => {
                     let intermediate = self.stack.pop().unwrap();
                     if let Some(element) = self.update(intermediate)? {

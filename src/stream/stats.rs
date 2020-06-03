@@ -1,4 +1,41 @@
-//! Collecting live statistics from an event stream.
+//! Infer simple statistics from an event stream.
+//!
+//! # Example
+//! This example illustrates how to deserialize XES XML from a string and compute basic statistics
+//! on the event stream the .
+//! ```
+//! use std::io;
+//! use promi::stream::{StreamSink, WrappingStream, consume, Observer};
+//! use promi::stream::xes;
+//! use promi::stream::stats::{Counter, StreamStats};
+//!
+//! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
+//!            <log xes.version="1.0" xes.features="">
+//!                <trace>
+//!                    <string key="id" value="Case1.0"/>
+//!                    <event>
+//!                        <string key="id" value="A"/>
+//!                    </event>
+//!                    <event>
+//!                        <string key="id" value="B"/>
+//!                    </event>
+//!                </trace>
+//!            </log>"#;
+//!
+//! let reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
+//! let counter = Counter::new(reader);
+//! let mut observer = Observer::new(counter);
+//!
+//! observer.register(StreamStats::default());
+//!
+//! consume(&mut observer);
+//!
+//! let stats = observer.release().unwrap();
+//! let counter = observer.into_inner();
+//!
+//! assert_eq!([1, 1, 0], counter.counts());
+//! assert_eq!([1, 2], stats.counts())
+//! ```
 //!
 
 // standard library
@@ -9,8 +46,7 @@ use std::fmt::{Debug, Formatter};
 
 // local
 use crate::error::Result;
-use crate::stream::{Element, Handler, ResOpt, Stream};
-use crate::{Event, Meta, Trace};
+use crate::stream::{Element, Event, Handler, Meta, ResOpt, Stream, WrappingStream, Trace};
 
 /// Count element types in an extensible event stream
 #[derive(Debug)]
@@ -50,6 +86,16 @@ impl<T: Stream> Stream for Counter<T> {
         }
 
         Ok(element)
+    }
+}
+
+impl<T: Stream> WrappingStream<T> for Counter<T> {
+    fn inner(&self) -> &T {
+        &self.stream
+    }
+
+    fn into_inner(self) -> T {
+        self.stream
     }
 }
 

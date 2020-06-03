@@ -21,7 +21,7 @@ pub enum Error {
     #[error("Validation Error: {0}")]
     ValidationError(String),
 
-    #[error("key error {0} not found")]
+    #[error("key error, {0} not found")]
     KeyError(String),
 
     #[error("{0}")]

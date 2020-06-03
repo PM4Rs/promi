@@ -97,6 +97,13 @@ mod tests {
     use std::path::PathBuf;
     use std::thread;
 
+    /// Sets up the following scenario:
+    ///
+    /// The main thread parses a XES file and computes some statistics based on the event stream.
+    /// While doing that, the stream is duplicated twice and sent to two helper threads that do
+    /// nothing but sending the stream back to the main thread. Then, the main thread also computes
+    /// statistics of those duplicated streams and compares them to the original one.
+    ///
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
         let (s_t0_t1, mut r_t0_t1) = stream_channel();
@@ -125,7 +132,6 @@ mod tests {
         let mut c_t1 = Counter::new(r_t1_t0);
         let mut c_t2 = Counter::new(r_t2_t0);
 
-        // TODO investigate!
         // execute pipeline (order is important!)
         assert_eq!(consume(&mut c_t0).is_err(), expect_error);
         assert_eq!(consume(&mut c_t1).is_err(), expect_error);

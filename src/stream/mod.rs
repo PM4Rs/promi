@@ -4,8 +4,8 @@
 //! XES standard[1] (see also [xes-standard.org](http://www.xes-standard.org)).
 //!
 //! Further, it comes with commonly used convenience features such as buffering, filtering, basic
-//! statistics, validation and (de-)serialization. The provided API allows you to easily customize
-//! your data processing pipeline.
+//! statistics, validation and (de-)serialization. The provided API allows you to easily build and
+//! customize your data processing pipeline.
 //!
 //! [1] [_IEEE Standard for eXtensible Event Stream (XES) for Achieving Interoperability in Event
 //! Logs and Event Streams_, 1849:2016, 2016](https://standards.ieee.org/standard/1849-2016.html)
@@ -17,17 +17,290 @@ pub mod channel;
 pub mod filter;
 pub mod stats;
 pub mod xes;
-pub mod xesext;
 pub mod xml_util;
 
 // standard library
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::fmt::Debug;
 
 // third party
 
 // local
-use crate::error::{Error, Result};
-use crate::{Event, Meta, Trace};
+use crate::{DateTime, Error, Result};
+
+/// Attribute value type
+#[derive(Debug, Clone)]
+pub enum AttributeValue {
+    String(String),
+    Date(DateTime),
+    Int(i64),
+    Float(f64),
+    Boolean(bool),
+    Id(String),
+    List(Vec<Attribute>),
+}
+
+// TODO testing
+impl AttributeValue {
+    pub fn try_string(&self) -> Result<&String> {
+        match self {
+            AttributeValue::String(string) => Ok(string),
+            other => Err(Error::AttributeError(format!("{:?} is no string", other))),
+        }
+    }
+
+    pub fn try_date(&self) -> Result<&DateTime> {
+        match self {
+            AttributeValue::Date(timestamp) => Ok(timestamp),
+            other => Err(Error::AttributeError(format!("{:?} is no datetime", other))),
+        }
+    }
+
+    pub fn try_int(&self) -> Result<&i64> {
+        match self {
+            AttributeValue::Int(integer) => Ok(integer),
+            other => Err(Error::AttributeError(format!("{:?} is no integer", other))),
+        }
+    }
+
+    pub fn try_float(&self) -> Result<&f64> {
+        match self {
+            AttributeValue::Float(float) => Ok(float),
+            other => Err(Error::AttributeError(format!("{:?} is no float", other))),
+        }
+    }
+
+    pub fn try_boolean(&self) -> Result<&bool> {
+        match self {
+            AttributeValue::Boolean(boolean) => Ok(boolean),
+            other => Err(Error::AttributeError(format!("{:?} is no integer", other))),
+        }
+    }
+
+    pub fn try_id(&self) -> Result<&String> {
+        match self {
+            AttributeValue::Id(id) => Ok(id),
+            other => Err(Error::AttributeError(format!("{:?} is no id", other))),
+        }
+    }
+
+    pub fn try_list(&self) -> Result<&[Attribute]> {
+        match self {
+            AttributeValue::List(list) => Ok(list),
+            other => Err(Error::AttributeError(format!("{:?} is no list", other))),
+        }
+    }
+}
+
+/// Express atomic information
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > Information on any component (log, trace, or event) is stored in attribute components.
+/// > Attributes describe the enclosing component, which may contain an arbitrary number of
+/// > attributes.
+///
+#[derive(Debug, Clone)]
+pub struct Attribute {
+    key: String,
+    value: AttributeValue,
+}
+
+impl Attribute {
+    fn new(key: String, attribute: AttributeValue) -> Attribute {
+        Attribute {
+            key,
+            value: attribute,
+        }
+    }
+}
+
+/// Represents whether global or classifier target events or traces
+#[derive(Debug, Clone)]
+pub enum Scope {
+    Event,
+    Trace,
+}
+
+impl TryFrom<Option<String>> for Scope {
+    type Error = Error;
+
+    fn try_from(value: Option<String>) -> Result<Self> {
+        if let Some(s) = value {
+            match s.as_str() {
+                "trace" => Ok(Scope::Trace),
+                "event" => Ok(Scope::Event),
+                other => Err(Self::Error::XesError(format!("Invalid scope: {:?}", other))),
+            }
+        } else {
+            Ok(Scope::Event)
+        }
+    }
+}
+
+/// Provide semantics for sets of attributes
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > An extension defines a (possibly empty) set of attributes for every type of component.
+/// > The extension provides points of reference for interpreting these attributes, and, thus, their
+/// > components. Extensions, therefore, are primarily a vehicle for attaching semantics to a set of
+/// > defined attributes per component.
+///
+#[derive(Debug, Clone)]
+pub struct Extension {
+    name: String,
+    prefix: String,
+    uri: String,
+}
+
+/// Global attributes and defaults
+///
+/// Globals define attributes that have to be present in target scope and provide default values for
+/// such. This may either target traces or events, regardless whether within a trace or not.
+///
+#[derive(Debug, Clone)]
+pub struct Global {
+    scope: Scope,
+    attributes: Vec<Attribute>,
+}
+
+/// Assigns an identity to trace or event
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A classifier assigns an identity to each event that
+/// > makes it comparable to others (via their assigned identity). Examples of such identities
+/// > include the descriptive name of the event, the descriptive name of the case the event
+/// > relates to, the descriptive name of the cause of the event, and the descriptive name of the
+/// > case related to the event.
+///
+#[derive(Debug, Clone)]
+pub struct Classifier {
+    name: String,
+    scope: Scope,
+    keys: String,
+}
+
+/// Holds meta information of an extensible event stream
+#[derive(Debug, Clone)]
+pub struct Meta {
+    extensions: Vec<Extension>,
+    globals: Vec<Global>,
+    classifiers: Vec<Classifier>,
+    attributes: BTreeMap<String, AttributeValue>,
+}
+
+impl Default for Meta {
+    fn default() -> Self {
+        Meta {
+            extensions: Vec::new(),
+            globals: Vec::new(),
+            classifiers: Vec::new(),
+            attributes: BTreeMap::new(),
+        }
+    }
+}
+
+/// Represents an atomic granule of activity that has been observed
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > An event component represents an atomic granule of activity that has been observed. If
+/// > the event occurs in some trace, then it is clear to which case the event belongs. If the event
+/// > does not occur in some trace, that is, if it occurs in the log, then we need ways to relate
+/// > events to cases. For this, we will use the combination of a trace classifier and an event
+/// > classifier.
+///
+#[derive(Debug, Clone)]
+pub struct Event {
+    attributes: BTreeMap<String, AttributeValue>,
+}
+
+impl Default for Event {
+    fn default() -> Self {
+        Self {
+            attributes: BTreeMap::new(),
+        }
+    }
+}
+
+/// Represents the execution of a single case
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A trace component represents the execution of a single case, that is, of a single
+/// > execution (or enactment) of the specific process. A trace shall contain a (possibly empty)
+/// > list of events that are related to a single case. The order of the events in this list shall
+/// > be important, as it signifies the order in which the events have been observed.
+///
+#[derive(Debug, Clone)]
+pub struct Trace {
+    attributes: BTreeMap<String, AttributeValue>,
+    events: Vec<Event>,
+}
+
+impl Default for Trace {
+    fn default() -> Self {
+        Self {
+            attributes: BTreeMap::new(),
+            events: Vec::new(),
+        }
+    }
+}
+
+/// Represents information that is related to a specific process
+///
+/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
+/// > A log component represents information that is related to a specific process. Examples
+/// > of processes include handling insurance claims, using a complex X-ray machine, and browsing a
+/// > website. A log shall contain a (possibly empty) collection of traces followed by a (possibly
+/// > empty) list of events. The order of the events in this list shall be important, as it
+/// > signifies the order in which the events have been observed. If the log contains only events
+/// > and no traces, then the log is also called a stream.
+///
+#[derive(Debug, Clone)]
+pub struct Log {
+    meta: Meta,
+    traces: Vec<Trace>,
+    events: Vec<Event>,
+}
+
+impl Default for Log {
+    fn default() -> Self {
+        Self {
+            meta: Meta::default(),
+            traces: Vec::new(),
+            events: Vec::new(),
+        }
+    }
+}
+
+impl Into<buffer::Buffer> for Log {
+    fn into(self) -> buffer::Buffer {
+        let mut buffer = buffer::Buffer::default();
+
+        buffer.push(Ok(Some(Element::Meta(self.meta))));
+
+        for trace in self.traces {
+            buffer.push(Ok(Some(Element::Trace(trace))));
+        }
+
+        for event in self.events {
+            buffer.push(Ok(Some(Element::Event(event))));
+        }
+
+        buffer
+    }
+}
+
+impl StreamSink for Log {
+    fn on_element(&mut self, element: Element) -> Result<()> {
+        match element {
+            Element::Meta(meta) => self.meta = meta,
+            Element::Trace(trace) => self.traces.push(trace),
+            Element::Event(event) => self.events.push(event),
+        };
+
+        Ok(())
+    }
+}
 
 /// Atomic unit of an extensible event stream
 #[derive(Debug, Clone)]
@@ -40,7 +313,7 @@ pub enum Element {
 /// Container for stream elements that can express the empty element as well as errors
 pub type ResOpt = Result<Option<Element>>;
 
-/// Extensible event streams
+/// Extensible event stream
 ///
 /// Yields one stream element at a time. Usually, it either acts as a factory or forwards another
 /// stream. Errors are propagated to the caller.
@@ -48,6 +321,18 @@ pub type ResOpt = Result<Option<Element>>;
 pub trait Stream {
     /// Returns the next stream element
     fn next(&mut self) -> ResOpt;
+}
+
+/// Extensible event stream that wraps another stream instance
+///
+/// Usually, one wants to chain stream instances. TODO finish docs
+///
+pub trait WrappingStream<T: Stream>: Stream {
+    /// Get a reference to inner stream
+    fn inner(&self) -> &T;
+
+    /// Release inner stream
+    fn into_inner(self) -> T;
 }
 
 /// Stream endpoint
@@ -97,13 +382,7 @@ pub trait StreamSink {
 
 /// Stream sink that discards consumed contents
 pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
-    loop {
-        match stream.next()? {
-            Some(_) => (),
-            None => break,
-        };
-    }
-
+    while let Some(_) = stream.next()? { /* discard stream contents */ }
     Ok(())
 }
 
@@ -155,6 +434,16 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
                 Err(error)
             }
         }
+    }
+}
+
+impl<T: Stream, S: StreamSink> WrappingStream<T> for Duplicator<T, S> {
+    fn inner(&self) -> &T {
+        &self.stream
+    }
+
+    fn into_inner(self) -> T {
+        self.stream
     }
 }
 
@@ -263,7 +552,8 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 let meta = self
                     .meta
                     .as_ref()
-                    .ok_or(Error::StateError(format!("TODO proper error")))?;
+                    // TODO meta element is missing error
+                    .ok_or_else(|| Error::StateError("TODO proper error".to_string()))?;
 
                 for handler in self.handler.iter_mut() {
                     trace = match handler.trace(trace, meta)? {
@@ -274,22 +564,18 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 
                 let mut tmp: Vec<Event> = Vec::new();
 
-                loop {
-                    if let Some(event) = trace.events.pop() {
-                        let mut event = Some(event);
+                while let Some(event) = trace.events.pop() {
+                    let mut event = Some(event);
 
-                        for handler in self.handler.iter_mut() {
-                            event = match event {
-                                Some(event) => handler.event(event, true, meta)?,
-                                None => None,
-                            }
+                    for handler in self.handler.iter_mut() {
+                        event = match event {
+                            Some(event) => handler.event(event, true, meta)?,
+                            None => None,
                         }
+                    }
 
-                        if let Some(event) = event {
-                            tmp.push(event);
-                        }
-                    } else {
-                        break;
+                    if let Some(event) = event {
+                        tmp.push(event);
                     }
                 }
 
@@ -304,7 +590,8 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 let meta = self
                     .meta
                     .as_ref()
-                    .ok_or(Error::StateError(format!("TODO proper error")))?;
+                    // TODO meta element is missing error
+                    .ok_or_else(|| Error::StateError("TODO proper error".to_string()))?;
 
                 for handler in self.handler.iter_mut() {
                     event = match handler.event(event, false, meta)? {
@@ -323,17 +610,23 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
     fn next(&mut self) -> ResOpt {
-        loop {
-            if let Some(element) = self.stream.next()? {
-                if let Some(element) = self.handle_element(element)? {
-                    return Ok(Some(element));
-                }
-            } else {
-                break;
+        while let Some(element) = self.stream.next()? {
+            if let Some(element) = self.handle_element(element)? {
+                return Ok(Some(element));
             }
         }
 
         Ok(None)
+    }
+}
+
+impl<I: Stream, H: Handler> WrappingStream<I> for Observer<I, H> {
+    fn inner(&self) -> &I {
+        &self.stream
+    }
+
+    fn into_inner(self) -> I {
+        self.stream
     }
 }
 
@@ -558,26 +851,19 @@ mod tests {
     #[test]
     fn test_observer_order_validation() {
         let names = [
-            // TODO test?
-            // "misplaced_extension_classifier.xes",
-            // "misplaced_global_attribute.xes",
-            // "misplaced_extension_attribute.xes",
-            // "misplaced_global_classifier.xes",
-            // "misplaced_classifier_attribute.xes",
-            // "misplaced_extension_global.xes",
-            "misplaced_extension_event.xes",
-            // TODO separate test: "misplaced_trace_event.xes",
-            "misplaced_extension_trace.xes",
-            "misplaced_global_event.xes",
-            "misplaced_classifier_event.xes",
-            "misplaced_attribute_event.xes",
-            "misplaced_classifier_trace.xes",
-            "misplaced_attribute_trace.xes",
-            "misplaced_global_trace.xes",
+            ("non_parsing", "misplaced_extension_event.xes"),
+            ("non_parsing", "misplaced_extension_trace.xes"),
+            ("non_parsing", "misplaced_global_event.xes"),
+            ("non_parsing", "misplaced_classifier_event.xes"),
+            ("non_parsing", "misplaced_attribute_event.xes"),
+            ("non_parsing", "misplaced_classifier_trace.xes"),
+            ("non_parsing", "misplaced_attribute_trace.xes"),
+            ("non_parsing", "misplaced_global_trace.xes"),
+            ("non_validating", "misplaced_trace_event.xes"),
         ];
 
-        for n in names.iter() {
-            let f = open_buffered(&expand_static(&["xes", "non_parsing", n]));
+        for (d, n) in names.iter() {
+            let f = open_buffered(&expand_static(&["xes", d, n]));
             let reader = XesReader::from(f);
             let mut observer = Observer::new(reader);
 

@@ -15,7 +15,6 @@
 // standard library
 
 // third party
-use lazy_static;
 use regex::Regex;
 
 // local
@@ -88,7 +87,7 @@ pub fn parse_bool(string: &str) -> Result<bool> {
         "false" | "0" => Some(false),
         _ => None,
     }
-    .ok_or(Error::ParseBooleanError(string.to_string()))
+    .ok_or_else(|| Error::ParseBooleanError(string.to_string()))
 }
 
 /// Validate `xs:Token` string type

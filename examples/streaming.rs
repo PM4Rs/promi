@@ -1,7 +1,6 @@
 use promi::stream::stats::StreamStats;
-use promi::stream::{buffer, stats, xes, Observer, StreamSink};
+use promi::stream::{buffer, stats, xes, Log, Observer, StreamSink};
 use promi::util::expand_static;
-use promi::Log;
 use std::fs;
 use std::io;
 

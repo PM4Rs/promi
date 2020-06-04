@@ -46,7 +46,7 @@ use std::fmt::{Debug, Formatter};
 
 // local
 use crate::error::Result;
-use crate::stream::{Element, Event, Handler, Meta, ResOpt, Stream, WrappingStream, Trace};
+use crate::stream::{Element, Event, Handler, Meta, ResOpt, Stream, Trace, WrappingStream};
 
 /// Count element types in an extensible event stream
 #[derive(Debug)]

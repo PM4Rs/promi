@@ -53,21 +53,21 @@ use std::fmt::Debug;
 use std::io;
 
 // third party
-use quick_xml::{Reader as QxReader, Writer as QxWriter};
 use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
+use quick_xml::{Reader as QxReader, Writer as QxWriter};
 
 // local
-use crate::{DateTime, Error, Result};
+use crate::stream::xml_util::{
+    parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
+};
 use crate::stream::{
     Attribute, AttributeValue, Classifier, Element, Event, Extension, Global, Log, Meta, ResOpt,
     Scope, Stream, StreamSink, Trace,
 };
-use crate::stream::xml_util::{
-    parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
-};
+use crate::{DateTime, Error, Result};
 
 #[derive(Debug)]
 enum XesElement {

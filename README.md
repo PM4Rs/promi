@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/crates/d/promi)](https://crates.io/crates/promi)
 
 ## Nice to have
-There's a lot of features that would be could but yet don't really fit into _promi_'s roadmap.
+There's cool features that don't really fit into _promi_'s roadmap yet.
 Those are collected in the [nive to have issue](https://github.com/PM4Rs/promi/issues/14).
     
 ## License

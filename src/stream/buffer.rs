@@ -86,7 +86,8 @@ pub mod tests {
         let mut buffer = Buffer::default();
 
         if buffer.consume(&mut reader).is_err() {
-            eprintln!("an error occurred when loading example: {:?}", &root);
+            eprintln!("an error occurred when loading: {:?}", &root);
+            eprintln!("this, however, may be intended");
         }
 
         buffer

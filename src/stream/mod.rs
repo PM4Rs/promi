@@ -15,6 +15,7 @@
 pub mod buffer;
 pub mod channel;
 pub mod filter;
+pub mod split;
 pub mod stats;
 pub mod xes;
 pub mod xml_util;

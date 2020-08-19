@@ -91,9 +91,7 @@ pub fn sync_stream_channel(bound: usize) -> (SyncStreamSender, StreamReceiver) {
 mod tests {
     use super::*;
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::stats::Counter;
-    use crate::stream::xes::XesReader;
-    use crate::stream::{consume, Duplicator};
+    use crate::stream::{consume, duplicator::Duplicator, stats::Counter, xes::XesReader};
     use std::path::PathBuf;
     use std::thread;
 

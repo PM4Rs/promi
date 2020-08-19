@@ -753,9 +753,9 @@ pub struct XesValidator {/* TODO to be implemented */}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::buffer::Buffer;
     use crate::stream::consume;
-    use crate::util::{expand_static, open_buffered};
     use std::fs;
     use std::io;
     use std::io::Write;

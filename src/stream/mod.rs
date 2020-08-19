@@ -633,8 +633,8 @@ impl<I: Stream, H: Handler> WrappingStream<I> for Observer<I, H> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::xes::XesReader;
-    use crate::util::{expand_static, open_buffered};
     use std::path::PathBuf;
 
     #[test]

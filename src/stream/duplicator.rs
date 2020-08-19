@@ -3,11 +3,9 @@
 // standard library
 
 // third party
-use rand::{distributions::Open01, random, Rng};
-use rand_pcg::Pcg64;
 
 // local
-use crate::stream::{Element, ResOpt, Stream, StreamSink, WrappingStream};
+use crate::stream::{ResOpt, Stream, StreamSink, WrappingStream};
 
 /// Creates a copy of an extensible event stream on the fly
 ///

@@ -50,6 +50,7 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
             match self.stream.next() {
                 Ok(Some(Element::Meta(meta))) => {
                     let element = Element::Meta(meta);
+                    self.test_sink.on_open()?;
                     self.test_sink.on_element(element.clone())?;
                     return Ok(Some(element));
                 }

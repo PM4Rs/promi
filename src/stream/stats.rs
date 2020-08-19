@@ -1,4 +1,41 @@
-//! Collecting live statistics from an event stream.
+//! Infer simple statistics from an event stream.
+//!
+//! # Example
+//! This example illustrates how to deserialize XES XML from a string and compute basic statistics
+//! on the event stream the .
+//! ```
+//! use std::io;
+//! use promi::stream::{StreamSink, WrappingStream, consume, Observer};
+//! use promi::stream::xes;
+//! use promi::stream::stats::{Counter, StreamStats};
+//!
+//! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
+//!            <log xes.version="1.0" xes.features="">
+//!                <trace>
+//!                    <string key="id" value="Case1.0"/>
+//!                    <event>
+//!                        <string key="id" value="A"/>
+//!                    </event>
+//!                    <event>
+//!                        <string key="id" value="B"/>
+//!                    </event>
+//!                </trace>
+//!            </log>"#;
+//!
+//! let reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
+//! let counter = Counter::new(reader);
+//! let mut observer = Observer::new(counter);
+//!
+//! observer.register(StreamStats::default());
+//!
+//! consume(&mut observer);
+//!
+//! let stats = observer.release().unwrap();
+//! let counter = observer.into_inner();
+//!
+//! assert_eq!([1, 1, 0], counter.counts());
+//! assert_eq!([1, 2], stats.counts())
+//! ```
 //!
 
 // standard library
@@ -9,17 +46,13 @@ use std::fmt::{Debug, Formatter};
 
 // local
 use crate::error::Result;
-use crate::stream::{Element, Handler, Meta, ResOpt, Stream};
-use crate::{Event, Trace};
+use crate::stream::{Element, Event, Handler, Meta, ResOpt, Stream, Trace, WrappingStream};
 
 /// Count element types in an extensible event stream
 #[derive(Debug)]
 pub struct Counter<T: Stream> {
     stream: T,
-    pub extensions: usize,
-    pub globals: usize,
-    pub classifiers: usize,
-    pub attributes: usize,
+    pub meta: usize,
     pub traces: usize,
     pub events: usize,
 }
@@ -29,25 +62,15 @@ impl<T: Stream> Counter<T> {
     pub fn new(stream: T) -> Self {
         Counter {
             stream,
-            extensions: 0,
-            globals: 0,
-            classifiers: 0,
-            attributes: 0,
+            meta: 0,
             traces: 0,
             events: 0,
         }
     }
 
     /// Counts as array
-    pub fn counts(&self) -> [usize; 6] {
-        [
-            self.extensions,
-            self.globals,
-            self.classifiers,
-            self.attributes,
-            self.traces,
-            self.events,
-        ]
+    pub fn counts(&self) -> [usize; 3] {
+        [self.meta, self.traces, self.events]
     }
 }
 
@@ -56,10 +79,7 @@ impl<T: Stream> Stream for Counter<T> {
         let element = self.stream.next()?;
 
         match &element {
-            Some(Element::Extension(_)) => self.extensions += 1,
-            Some(Element::Global(_)) => self.globals += 1,
-            Some(Element::Classifier(_)) => self.classifiers += 1,
-            Some(Element::Attribute(_)) => self.attributes += 1,
+            Some(Element::Meta(_)) => self.meta += 1,
             Some(Element::Trace(_)) => self.traces += 1,
             Some(Element::Event(_)) => self.events += 1,
             None => (),
@@ -69,15 +89,22 @@ impl<T: Stream> Stream for Counter<T> {
     }
 }
 
+impl<T: Stream> WrappingStream<T> for Counter<T> {
+    fn inner(&self) -> &T {
+        &self.stream
+    }
+
+    fn into_inner(self) -> T {
+        self.stream
+    }
+}
+
 impl<T: Stream> fmt::Display for Counter<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Counts")?;
-        writeln!(f, "   extensions:  {}", self.extensions)?;
-        writeln!(f, "   globals:     {}", self.globals)?;
-        writeln!(f, "   classifiers: {}", self.classifiers)?;
-        writeln!(f, "   attributes:  {}", self.attributes)?;
-        writeln!(f, "   traces:      {}", self.traces)?;
-        writeln!(f, "   events:      {}", self.events)?;
+        writeln!(f, "   meta:   {}", self.meta)?;
+        writeln!(f, "   traces: {}", self.traces)?;
+        writeln!(f, "   events: {}", self.events)?;
         Ok(())
     }
 }
@@ -141,17 +168,13 @@ mod tests {
     #[test]
     fn test_counter() {
         let param = [
-            ("book", "L1.xes", [5, 2, 3, 3, 6, 0]),
-            ("book", "L2.xes", [5, 2, 3, 3, 13, 0]),
-            ("book", "L3.xes", [5, 2, 3, 3, 4, 0]),
-            ("book", "L4.xes", [5, 2, 3, 3, 147, 0]),
-            ("book", "L5.xes", [5, 2, 3, 3, 14, 0]),
-            ("correct", "log_correct_attributes.xes", [0, 0, 0, 0, 0, 0]),
-            (
-                "correct",
-                "event_correct_attributes.xes",
-                [2, 2, 1, 1, 1, 2],
-            ),
+            ("book", "L1.xes", [1, 6, 0]),
+            ("book", "L2.xes", [1, 13, 0]),
+            ("book", "L3.xes", [1, 4, 0]),
+            ("book", "L4.xes", [1, 147, 0]),
+            ("book", "L5.xes", [1, 14, 0]),
+            ("correct", "log_correct_attributes.xes", [1, 0, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 1, 2]),
         ];
 
         for (d, f, e) in param.iter() {

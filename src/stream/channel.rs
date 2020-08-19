@@ -90,13 +90,20 @@ pub fn sync_stream_channel(bound: usize) -> (SyncStreamSender, StreamReceiver) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::stats::Counter;
     use crate::stream::xes::XesReader;
     use crate::stream::{consume, Duplicator};
-    use crate::util::{expand_static, open_buffered};
     use std::path::PathBuf;
     use std::thread;
 
+    /// Sets up the following scenario:
+    ///
+    /// The main thread parses a XES file and computes some statistics based on the event stream.
+    /// While doing that, the stream is duplicated twice and sent to two helper threads that do
+    /// nothing but sending the stream back to the main thread. Then, the main thread also computes
+    /// statistics of those duplicated streams and compares them to the original one.
+    ///
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
         let (s_t0_t1, mut r_t0_t1) = stream_channel();

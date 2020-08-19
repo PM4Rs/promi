@@ -8,16 +8,12 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 // local
-use crate::stream;
 
 /// A common error type for promi
 #[derive(Error, Debug, Clone)]
 pub enum Error {
-    #[error("state order violation: cannot go back into {got:?} when in {current:?}")]
-    StateError {
-        got: stream::StreamState,
-        current: stream::StreamState,
-    },
+    #[error("{0}")]
+    StateError(String),
 
     #[error("Stream Error: {0}")]
     StreamError(String),
@@ -25,7 +21,7 @@ pub enum Error {
     #[error("Validation Error: {0}")]
     ValidationError(String),
 
-    #[error("key error {0} not found")]
+    #[error("key error, {0} not found")]
     KeyError(String),
 
     #[error("{0}")]
@@ -51,6 +47,9 @@ pub enum Error {
 
     #[error("{0}")]
     ChannelError(String),
+
+    #[error("{0}")]
+    AttributeError(String),
 }
 
 // Manual conversion as quick-xml errors don't support cloning

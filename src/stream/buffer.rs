@@ -1,5 +1,9 @@
 //! Buffering event streams.
 //!
+//! A buffer is essentially a fifo queue that supports the streaming protocol and can be used as a
+//! stream sink. Apart from that, a buffer is a pretty dumb data structure. If you're interested in
+//! a thread safe way of buffering an event stream, have a look at channels.
+//!
 
 // standard library
 use std::collections::VecDeque;
@@ -52,6 +56,10 @@ impl Buffer {
         self.buffer.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn push(&mut self, element: ResOpt) {
         self.buffer.push_back(element)
     }
@@ -89,24 +97,24 @@ pub mod tests {
         let mut buffer_a = load_example(&["xes", "book", "L1.xes"]);
         let mut buffer_b = Buffer::default();
 
-        assert_eq!(buffer_a.len(), 19);
+        assert_eq!(buffer_a.len(), 7);
         assert_eq!(buffer_b.len(), 0);
 
         buffer_b.consume(&mut buffer_a).unwrap();
 
         assert_eq!(buffer_a.len(), 0);
-        assert_eq!(buffer_b.len(), 19);
+        assert_eq!(buffer_b.len(), 7);
 
-        let event = crate::Event::default();
+        let event = stream::Event::default();
         buffer_a.push(Ok(Some(stream::Element::Event(event))));
 
         assert_eq!(buffer_a.len(), 1);
-        assert_eq!(buffer_b.len(), 19);
+        assert_eq!(buffer_b.len(), 7);
 
         buffer_b.consume(&mut buffer_a).unwrap();
 
         assert_eq!(buffer_a.len(), 0);
-        assert_eq!(buffer_b.len(), 20);
+        assert_eq!(buffer_b.len(), 8);
 
         stream::consume(&mut buffer_b).unwrap();
 

@@ -5,9 +5,14 @@
 //! on the event stream the .
 //! ```
 //! use std::io;
-//! use promi::stream::{StreamSink, WrappingStream, consume, Observer};
-//! use promi::stream::xes;
-//! use promi::stream::stats::{Counter, StreamStats};
+//! use promi::stream::{
+//!     consume,
+//!     observer::Observer,
+//!     stats::{Counter, StreamStats},
+//!     StreamSink,
+//!     WrappingStream,
+//!     xes::XesReader
+//! };
 //!
 //! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
 //!            <log xes.version="1.0" xes.features="">
@@ -22,7 +27,7 @@
 //!                </trace>
 //!            </log>"#;
 //!
-//! let reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
+//! let reader = XesReader::from(io::BufReader::new(s.as_bytes()));
 //! let counter = Counter::new(reader);
 //! let mut observer = Observer::new(counter);
 //!
@@ -46,7 +51,9 @@ use std::fmt::{Debug, Formatter};
 
 // local
 use crate::error::Result;
-use crate::stream::{Element, Event, Handler, Meta, ResOpt, Stream, Trace, WrappingStream};
+use crate::stream::{
+    observer::Handler, Element, Event, Meta, ResOpt, Stream, Trace, WrappingStream,
+};
 
 /// Count element types in an extensible event stream
 #[derive(Debug)]
@@ -162,8 +169,7 @@ impl fmt::Display for StreamStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream;
-    use crate::stream::buffer::tests::load_example;
+    use crate::stream::{buffer::tests::load_example, consume, observer::Observer};
 
     #[test]
     fn test_counter() {
@@ -180,7 +186,7 @@ mod tests {
         for (d, f, e) in param.iter() {
             let mut stats = Counter::new(load_example(&["xes", d, f]));
 
-            stream::consume(&mut stats).unwrap();
+            consume(&mut stats).unwrap();
 
             assert_eq!(stats.counts(), *e);
         }
@@ -200,10 +206,10 @@ mod tests {
 
         for (d, f, e) in param.iter() {
             let buffer = load_example(&["xes", d, f]);
-            let mut observer = stream::Observer::new(buffer);
+            let mut observer = Observer::new(buffer);
             observer.register(StreamStats::default());
 
-            stream::consume(&mut observer).unwrap();
+            consume(&mut observer).unwrap();
 
             let stats = observer.release().unwrap();
             assert_eq!(stats.counts(), *e);

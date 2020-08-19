@@ -1,6 +1,10 @@
 use promi::dev_util::expand_static;
-use promi::stream::stats::StreamStats;
-use promi::stream::{buffer, stats, xes, Log, Observer, StreamSink};
+use promi::stream::{
+    buffer,
+    observer::Observer,
+    stats::{Counter, StreamStats},
+    xes, Log, StreamSink,
+};
 use std::fs;
 use std::io;
 
@@ -60,7 +64,7 @@ fn example_2() {
     print!("read {:?} to log and count elements: ", &path);
     let mut log = Log::default();
     let reader = xes::XesReader::from(f);
-    let mut counter = stats::Counter::new(reader);
+    let mut counter = Counter::new(reader);
     log.consume(&mut counter).unwrap();
     println!("{:?}", &log);
 

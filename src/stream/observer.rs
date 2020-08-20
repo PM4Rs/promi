@@ -20,13 +20,13 @@ pub trait Handler {
     ///
     /// Invoked once per stream when transition from meta data to payload is passed.
     ///
-    fn meta(&mut self, _meta: &Meta) {}
+    fn on_meta(&mut self, _meta: &Meta) {}
 
     /// Handle a trace
     ///
     /// Invoked on each trace that occurs in a stream. Events contained toggle a separate callback.
     ///
-    fn trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
+    fn on_trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
         Ok(Some(trace))
     }
 
@@ -35,7 +35,7 @@ pub trait Handler {
     /// Invoked on each event in stream. Whether the element is part of a trace is indicated by
     /// `in_trace`.
     ///
-    fn event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
+    fn on_event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
         Ok(Some(event))
     }
 }
@@ -95,12 +95,12 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         )))
     }
 
-    fn handle_element(&mut self, element: Element) -> ResOpt {
+    fn on_element(&mut self, element: Element) -> ResOpt {
         let element = match element {
             Element::Meta(meta) => {
                 self.update_state(StreamState::Meta)?;
                 for handler in self.handler.iter_mut() {
-                    handler.meta(&meta);
+                    handler.on_meta(&meta);
                 }
                 self.meta = Some(meta.clone());
                 Element::Meta(meta)
@@ -109,14 +109,12 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 self.update_state(StreamState::Trace)?;
 
                 let mut trace = trace;
-                let meta = self
-                    .meta
-                    .as_ref()
-                    // TODO meta element is missing error
-                    .ok_or_else(|| Error::StateError("TODO proper error".to_string()))?;
+                let meta = self.meta.as_ref().ok_or_else(|| {
+                    Error::StateError("The stream is missing its meta data element".to_string())
+                })?;
 
                 for handler in self.handler.iter_mut() {
-                    trace = match handler.trace(trace, meta)? {
+                    trace = match handler.on_trace(trace, meta)? {
                         Some(trace) => trace,
                         None => return Ok(None),
                     };
@@ -129,7 +127,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 
                     for handler in self.handler.iter_mut() {
                         event = match event {
-                            Some(event) => handler.event(event, true, meta)?,
+                            Some(event) => handler.on_event(event, true, meta)?,
                             None => None,
                         }
                     }
@@ -147,14 +145,12 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 self.update_state(StreamState::Event)?;
 
                 let mut event = event;
-                let meta = self
-                    .meta
-                    .as_ref()
-                    // TODO meta element is missing error
-                    .ok_or_else(|| Error::StateError("TODO proper error".to_string()))?;
+                let meta = self.meta.as_ref().ok_or_else(|| {
+                    Error::StateError("The stream is missing its meta data element".to_string())
+                })?;
 
                 for handler in self.handler.iter_mut() {
-                    event = match handler.event(event, false, meta)? {
+                    event = match handler.on_event(event, false, meta)? {
                         Some(event) => event,
                         None => return Ok(None),
                     };
@@ -171,7 +167,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
     fn next(&mut self) -> ResOpt {
         while let Some(element) = self.stream.next()? {
-            if let Some(element) = self.handle_element(element)? {
+            if let Some(element) = self.on_element(element)? {
                 return Ok(Some(element));
             }
         }
@@ -207,11 +203,11 @@ mod tests {
     }
 
     impl Handler for TestHandler {
-        fn meta(&mut self, _meta: &Meta) {
+        fn on_meta(&mut self, _meta: &Meta) {
             self.ct_meta += 1;
         }
 
-        fn trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
+        fn on_trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
             self.ct_trace += 1;
 
             if !self.filter || self.ct_trace % 2 == 0 {
@@ -221,7 +217,12 @@ mod tests {
             }
         }
 
-        fn event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
+        fn on_event(
+            &mut self,
+            event: Event,
+            _in_trace: bool,
+            _meta: &Meta,
+        ) -> Result<Option<Event>> {
             self.ct_event += 1;
 
             if _in_trace {

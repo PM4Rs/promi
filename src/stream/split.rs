@@ -109,15 +109,14 @@ pub mod tests {
             }
         }
 
+        let buffer: Buffer = log.into();
         for ratio in &[0.0, 0.33, 1.0] {
             let mut train_trace_ratio: f64 = 0.0;
             let mut train_event_ratio: f64 = 0.0;
 
             for seed in 0..repetitions {
-                let buffer: Buffer = log.clone().into();
-
                 let test_buffer = Buffer::default();
-                let split = Split::new(buffer, test_buffer, *ratio, Some(seed));
+                let split = Split::new(buffer.clone(), test_buffer, *ratio, Some(seed));
                 let mut train_counter = Counter::new(split);
 
                 consume(&mut train_counter).unwrap();

@@ -1,10 +1,21 @@
 language: rust
+
 rust:
   - stable
   - beta
   - nightly
+
 matrix:
   allow_failures:
     - rust: nightly
+
 before_install:
-  - sudo apt-get -y install libxml2-utils
+  - sudo apt-get -y install libxml2-utils openssl
+
+before_script:
+  - cargo install --force cargo-audit
+  - cargo generate-lockfile
+
+script:
+  - cargo build --verbose --workspace
+  - cargo test --verbose --workspace

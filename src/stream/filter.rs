@@ -8,7 +8,7 @@
 use crate::error::Result;
 use crate::stream::{
     observer::{Handler, Observer},
-    Attributes, Event, Meta, Stream, Trace,
+    Attributes, Event, Stream, Trace,
 };
 
 /// A condition aka filter function maps any item to a boolean value
@@ -34,7 +34,7 @@ impl<'a> Default for Filter<'a> {
 }
 
 impl<'a> Handler for Filter<'a> {
-    fn on_trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
+    fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
         for filter in self.trace_filter.iter() {
             if filter(&trace)? {
                 return Ok(Some(trace));
@@ -44,7 +44,7 @@ impl<'a> Handler for Filter<'a> {
         Ok(None)
     }
 
-    fn on_event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
+    fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
         for filter in self.event_filter.iter() {
             if filter(&event)? {
                 return Ok(Some(event));

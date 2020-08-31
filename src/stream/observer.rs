@@ -20,13 +20,15 @@ pub trait Handler {
     ///
     /// Invoked once per stream when transition from meta data to payload is passed.
     ///
-    fn on_meta(&mut self, _meta: &Meta) {}
+    fn on_meta(&mut self, meta: Meta) -> Result<Meta> {
+        Ok(meta)
+    }
 
     /// Handle a trace
     ///
     /// Invoked on each trace that occurs in a stream. Events contained toggle a separate callback.
     ///
-    fn on_trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
+    fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
         Ok(Some(trace))
     }
 
@@ -35,7 +37,7 @@ pub trait Handler {
     /// Invoked on each event in stream. Whether the element is part of a trace is indicated by
     /// `in_trace`.
     ///
-    fn on_event(&mut self, event: Event, _in_trace: bool, _meta: &Meta) -> Result<Option<Event>> {
+    fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
         Ok(Some(event))
     }
 }
@@ -46,12 +48,10 @@ pub trait Handler {
 /// of registered handlers and invokes their callbacks. Further, it checks if elements of the stream
 /// occur in a valid order.
 ///
-/// TODO remove copy of meta
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
     state: ElementType,
-    meta: Option<Meta>,
     handler: Vec<H>,
 }
 
@@ -61,7 +61,6 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         Observer {
             stream,
             state: ElementType::Meta,
-            meta: None,
             handler: Vec::new(),
         }
     }
@@ -92,35 +91,38 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         let element = match element {
             Element::Meta(meta) => {
                 self.update_state(ElementType::Meta)?;
+
+                // call all the handlers
+                let mut meta = meta;
                 for handler in self.handler.iter_mut() {
-                    handler.on_meta(&meta);
+                    meta = handler.on_meta(meta)?;
                 }
-                self.meta = Some(meta.clone());
+
+                // As there's only one meta element allowed, we can directly jump to trace state
+                self.update_state(ElementType::Trace)?;
+
                 Element::Meta(meta)
             }
             Element::Trace(trace) => {
                 self.update_state(ElementType::Trace)?;
 
+                // apply all handlers on trace
                 let mut trace = trace;
-                let meta = self.meta.as_ref().ok_or_else(|| {
-                    Error::StateError("The stream is missing its meta data element".to_string())
-                })?;
-
                 for handler in self.handler.iter_mut() {
-                    trace = match handler.on_trace(trace, meta)? {
+                    trace = match handler.on_trace(trace)? {
                         Some(trace) => trace,
                         None => return Ok(None),
                     };
                 }
 
+                // apply all handlers on events within trace
                 let mut tmp: Vec<Event> = Vec::new();
-
                 while let Some(event) = trace.events.pop() {
                     let mut event = Some(event);
 
                     for handler in self.handler.iter_mut() {
                         event = match event {
-                            Some(event) => handler.on_event(event, true, meta)?,
+                            Some(event) => handler.on_event(event, true)?,
                             None => None,
                         }
                     }
@@ -129,21 +131,17 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                         tmp.push(event);
                     }
                 }
-
-                trace.events.append(&mut tmp);
+                trace.events.extend(tmp);
 
                 Element::Trace(trace)
             }
             Element::Event(event) => {
                 self.update_state(ElementType::Event)?;
 
+                // apply all handlers on the event
                 let mut event = event;
-                let meta = self.meta.as_ref().ok_or_else(|| {
-                    Error::StateError("The stream is missing its meta data element".to_string())
-                })?;
-
                 for handler in self.handler.iter_mut() {
-                    event = match handler.on_event(event, false, meta)? {
+                    event = match handler.on_event(event, false)? {
                         Some(event) => event,
                         None => return Ok(None),
                     };
@@ -196,11 +194,12 @@ mod tests {
     }
 
     impl Handler for TestHandler {
-        fn on_meta(&mut self, _meta: &Meta) {
+        fn on_meta(&mut self, meta: Meta) -> Result<Meta> {
             self.ct_meta += 1;
+            Ok(meta)
         }
 
-        fn on_trace(&mut self, trace: Trace, _meta: &Meta) -> Result<Option<Trace>> {
+        fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
             self.ct_trace += 1;
 
             if !self.filter || self.ct_trace % 2 == 0 {
@@ -210,12 +209,7 @@ mod tests {
             }
         }
 
-        fn on_event(
-            &mut self,
-            event: Event,
-            _in_trace: bool,
-            _meta: &Meta,
-        ) -> Result<Option<Event>> {
+        fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
             self.ct_event += 1;
 
             if _in_trace {

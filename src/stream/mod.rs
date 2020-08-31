@@ -43,7 +43,6 @@ pub enum AttributeValue {
     List(Vec<Attribute>),
 }
 
-// TODO testing
 impl AttributeValue {
     pub fn try_string(&self) -> Result<&String> {
         match self {
@@ -310,6 +309,121 @@ pub enum Element {
     Meta(Meta),
     Trace(Trace),
     Event(Event),
+}
+
+/// State of an extensible event stream
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum ElementType {
+    Meta,
+    Trace,
+    Event,
+}
+
+/// Provide a unified way to access an element's attributes and those of potential child elements
+pub trait Attributes {
+    /// Try to return an attribute by its key
+    fn get(&self, key: &str) -> Option<&AttributeValue>;
+
+    /// Try to return an attribute by its key and rise an error it the key is not present
+    fn get_or(&self, key: &str) -> Result<&AttributeValue> {
+        match self.get(key) {
+            Some(value) => Ok(value),
+            None => Err(Error::KeyError(key.to_string())),
+        }
+    }
+
+    /// Access child components of this component
+    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+        vec![]
+    }
+
+    /// Tell the caller what kind of object this view refers to
+    fn hint(&self) -> ElementType;
+}
+
+impl Attributes for Meta {
+    fn get(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get(key)
+    }
+
+    fn hint(&self) -> ElementType {
+        ElementType::Meta
+    }
+}
+
+impl Attributes for Trace {
+    fn get(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get(key)
+    }
+
+    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+        self.events
+            .iter()
+            .map(|e| Box::new(e as &'a dyn Attributes))
+            .collect()
+    }
+
+    fn hint(&self) -> ElementType {
+        ElementType::Trace
+    }
+}
+
+impl Attributes for Event {
+    fn get(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get(key)
+    }
+
+    fn hint(&self) -> ElementType {
+        ElementType::Event
+    }
+}
+
+impl Attributes for Log {
+    fn get(&self, key: &str) -> Option<&AttributeValue> {
+        self.meta.attributes.get(key)
+    }
+
+    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+        self.traces
+            .iter()
+            .map(|t| Box::new(t as &'a dyn Attributes))
+            .chain(
+                self.events
+                    .iter()
+                    .map(|e| Box::new(e as &'a dyn Attributes)),
+            )
+            .collect()
+    }
+
+    fn hint(&self) -> ElementType {
+        ElementType::Meta
+    }
+}
+
+impl Attributes for Element {
+    fn get(&self, key: &str) -> Option<&AttributeValue> {
+        match self {
+            Element::Meta(meta) => meta.get(key),
+            Element::Trace(trace) => trace.get(key),
+            Element::Event(event) => event.get(key),
+        }
+    }
+
+    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+        match self {
+            Element::Meta(meta) => meta.children(),
+            Element::Trace(trace) => trace.children(),
+            Element::Event(event) => event.children(),
+        }
+    }
+
+    fn hint(&self) -> ElementType {
+        match self {
+            Element::Meta(meta) => meta.hint(),
+            Element::Trace(trace) => trace.hint(),
+            Element::Event(event) => event.hint(),
+        }
+    }
 }
 
 /// Container for stream elements that can express the empty element as well as errors

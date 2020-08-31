@@ -6,7 +6,7 @@
 
 // local
 use crate::error::{Error, Result};
-use crate::stream::{Element, Event, Meta, ResOpt, Stream, Trace, WrappingStream};
+use crate::stream::{Element, ElementType, Event, Meta, ResOpt, Stream, Trace, WrappingStream};
 
 /// Gets registered with an observer while providing callbacks
 ///
@@ -40,24 +40,17 @@ pub trait Handler {
     }
 }
 
-/// State of an extensible event stream
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum StreamState {
-    Meta,
-    Trace,
-    Event,
-}
-
 /// Observes a stream and revokes registered callbacks
 ///
 /// An observer preserves a state with copies of meta data elements. It manages an arbitrary number
 /// of registered handlers and invokes their callbacks. Further, it checks if elements of the stream
 /// occur in a valid order.
 ///
+/// TODO remove copy of meta
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
-    state: StreamState,
+    state: ElementType,
     meta: Option<Meta>,
     handler: Vec<H>,
 }
@@ -67,7 +60,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     pub fn new(stream: I) -> Self {
         Observer {
             stream,
-            state: StreamState::Meta,
+            state: ElementType::Meta,
             meta: None,
             handler: Vec::new(),
         }
@@ -83,22 +76,22 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         self.handler.pop()
     }
 
-    fn update_state(&mut self, state: StreamState) -> Result<()> {
-        if self.state <= state {
+    fn update_state(&mut self, state: ElementType) -> Result<()> {
+        if self.state > state {
+            Err(Error::StateError(format!(
+                "invalid transition: {:?} --> {:?}",
+                self.state, state
+            )))
+        } else {
             self.state = state;
-            return Ok(());
+            Ok(())
         }
-
-        Err(Error::StateError(format!(
-            "invalid transition: {:?} --> {:?}",
-            self.state, state
-        )))
     }
 
     fn on_element(&mut self, element: Element) -> ResOpt {
         let element = match element {
             Element::Meta(meta) => {
-                self.update_state(StreamState::Meta)?;
+                self.update_state(ElementType::Meta)?;
                 for handler in self.handler.iter_mut() {
                     handler.on_meta(&meta);
                 }
@@ -106,7 +99,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 Element::Meta(meta)
             }
             Element::Trace(trace) => {
-                self.update_state(StreamState::Trace)?;
+                self.update_state(ElementType::Trace)?;
 
                 let mut trace = trace;
                 let meta = self.meta.as_ref().ok_or_else(|| {
@@ -142,7 +135,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 Element::Trace(trace)
             }
             Element::Event(event) => {
-                self.update_state(StreamState::Event)?;
+                self.update_state(ElementType::Event)?;
 
                 let mut event = event;
                 let meta = self.meta.as_ref().ok_or_else(|| {

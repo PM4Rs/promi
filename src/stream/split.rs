@@ -97,10 +97,15 @@ pub mod tests {
     #[test]
     fn test_split() {
         let repetitions: u128 = 5;
-        let mut buffer = load_example(&["xes", "book", "bigger-example.xes"]);
+        let mut buffer = load_example(&["xes", "book", "L1.xes"]);
 
         let mut log = Log::default();
         log.consume(&mut buffer).unwrap();
+
+        // inflate log
+        for _ in 0..7 {
+            log.traces.extend(log.traces.clone())
+        }
 
         // turn some traces into independent events
         for _ in 0..log.traces.len() / 6 {
@@ -144,8 +149,8 @@ pub mod tests {
             train_trace_ratio /= repetitions as f64;
             train_event_ratio /= repetitions as f64;
 
-            assert_is_close(train_trace_ratio, *ratio, Some(1e-2), None, None);
-            assert_is_close(train_event_ratio, *ratio, Some(1e-2), None, None);
+            assert_is_close(train_trace_ratio, *ratio, Some(1.5 * 1e-2), None, None);
+            assert_is_close(train_event_ratio, *ratio, Some(1.5 * 1e-2), None, None);
         }
     }
 }

@@ -19,13 +19,6 @@ rand_pcg = "0.2"
 regex = "1.3"
 quick-xml = "0.18"
 
-[dev-dependencies]
-criterion = "0.3"
-
-[[bench]]
-name = "xes"
-harness = false
-
 [profile.release]
 panic = 'abort'
 

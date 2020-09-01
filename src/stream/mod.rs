@@ -334,7 +334,7 @@ pub trait Attributes {
     }
 
     /// Access child components of this component
-    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
         vec![]
     }
 
@@ -357,10 +357,10 @@ impl Attributes for Trace {
         self.attributes.get(key)
     }
 
-    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
         self.events
             .iter()
-            .map(|e| Box::new(e as &'a dyn Attributes))
+            .map(|e| e as &'a dyn Attributes)
             .collect()
     }
 
@@ -384,15 +384,11 @@ impl Attributes for Log {
         self.meta.attributes.get(key)
     }
 
-    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
         self.traces
             .iter()
-            .map(|t| Box::new(t as &'a dyn Attributes))
-            .chain(
-                self.events
-                    .iter()
-                    .map(|e| Box::new(e as &'a dyn Attributes)),
-            )
+            .map(|t| t as &'a dyn Attributes)
+            .chain(self.events.iter().map(|e| e as &'a dyn Attributes))
             .collect()
     }
 
@@ -410,7 +406,7 @@ impl Attributes for Element {
         }
     }
 
-    fn children<'a>(&'a self) -> Vec<Box<&'a dyn Attributes>> {
+    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
         match self {
             Element::Meta(meta) => meta.children(),
             Element::Trace(trace) => trace.children(),
@@ -506,10 +502,11 @@ pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dev_util::load_example;
 
     #[test]
     pub fn test_consume() {
-        let mut buffer = buffer::tests::load_example(&["xes", "book", "L1.xes"]);
+        let mut buffer = load_example(&["book", "L1.xes"]);
 
         assert_eq!(buffer.len(), 7);
 

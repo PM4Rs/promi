@@ -41,6 +41,7 @@ extern crate quick_xml;
 extern crate regex;
 extern crate thiserror;
 
+#[cfg(test)]
 pub mod dev_util;
 pub mod error;
 pub mod stream;

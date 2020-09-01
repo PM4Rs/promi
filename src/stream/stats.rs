@@ -167,7 +167,8 @@ impl fmt::Display for StreamStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::{buffer::tests::load_example, consume, observer::Observer};
+    use crate::dev_util::load_example;
+    use crate::stream::{consume, observer::Observer};
 
     #[test]
     fn test_counter() {
@@ -182,7 +183,7 @@ mod tests {
         ];
 
         for (d, f, e) in param.iter() {
-            let mut stats = Counter::new(load_example(&["xes", d, f]));
+            let mut stats = Counter::new(load_example(&[d, f]));
 
             consume(&mut stats).unwrap();
 
@@ -203,7 +204,7 @@ mod tests {
         ];
 
         for (d, f, e) in param.iter() {
-            let buffer = load_example(&["xes", d, f]);
+            let buffer = load_example(&[d, f]);
             let mut observer = Observer::new(buffer);
             observer.register(StreamStats::default());
 

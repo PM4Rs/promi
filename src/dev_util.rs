@@ -2,13 +2,16 @@
 //!
 
 // standard library
-use std::fs;
+use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 
 // third party
 
 // local
+use crate::stream::buffer::Buffer;
+use crate::stream::xes::XesReader;
+use crate::stream::StreamSink;
 
 /// Access assets
 ///
@@ -27,8 +30,8 @@ pub fn expand_static(path: &[&str]) -> PathBuf {
 }
 
 /// Open a file as `io::BufReader`
-pub fn open_buffered(path: &Path) -> io::BufReader<fs::File> {
-    io::BufReader::new(fs::File::open(&path).unwrap_or_else(|_| panic!("No such file {:?}", &path)))
+pub fn open_buffered(path: &Path) -> io::BufReader<File> {
+    io::BufReader::new(File::open(&path).unwrap_or_else(|_| panic!("No such file {:?}", &path)))
 }
 
 /// Check whether two floats are close to each other
@@ -53,6 +56,7 @@ pub fn open_buffered(path: &Path) -> io::BufReader<fs::File> {
 /// **NOTE** if given method is unknown, this function falls back on the `weak` criterion rather
 /// than failing!
 ///
+#[allow(clippy::float_cmp)]
 pub fn is_close(
     a: f64,
     b: f64,
@@ -82,9 +86,7 @@ pub fn is_close(
         "strong" => {
             ((diff <= (rel_tol * b).abs()) && (diff <= (rel_tol * a).abs())) || (diff <= abs_tol)
         }
-        "weak" | _ => {
-            ((diff <= (rel_tol * b).abs()) || (diff <= (rel_tol * a).abs())) || (diff <= abs_tol)
-        }
+        _ => ((diff <= (rel_tol * b).abs()) || (diff <= (rel_tol * a).abs())) || (diff <= abs_tol),
     }
 }
 
@@ -114,6 +116,28 @@ pub fn assert_is_not_close(
         !is_close(a, b, rel_tol, abs_tol, method),
         format!("{} is close to {}", a, b)
     )
+}
+
+///
+pub fn load_example(path: &[&str]) -> Buffer {
+    let mut root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("static")
+        .join("xes");
+
+    for p in path {
+        root = root.join(p);
+    }
+
+    let f = io::BufReader::new(File::open(&root).unwrap());
+    let mut reader = XesReader::from(f);
+    let mut buffer = Buffer::default();
+
+    if buffer.consume(&mut reader).is_err() {
+        eprintln!("an error occurred while loading: {:?}", &root);
+        eprintln!("this, however, may be intended");
+    }
+
+    buffer
 }
 
 #[cfg(test)]

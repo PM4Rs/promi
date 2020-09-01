@@ -844,8 +844,6 @@ mod tests {
                 validation_result.status.success(),
                 format!("validation failed for {:?}, {:?}", p, validation_result)
             );
-
-            break;
         }
     }
 

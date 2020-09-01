@@ -34,7 +34,7 @@ impl<T: Stream, S: StreamSink> Split<T, S> {
             stream: train_stream,
             test_sink,
             train_ratio,
-            rng: Pcg64::new(random_state.unwrap_or(random()), 0),
+            rng: Pcg64::new(random_state.unwrap_or_else(random), 0),
         }
     }
 
@@ -88,8 +88,7 @@ impl<T: Stream, S: StreamSink> WrappingStream<T> for Split<T, S> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::dev_util::assert_is_close;
-    use crate::stream::buffer::tests::load_example;
+    use crate::dev_util::{assert_is_close, load_example};
     use crate::stream::buffer::Buffer;
     use crate::stream::stats::Counter;
     use crate::stream::{consume, Log};
@@ -97,7 +96,7 @@ pub mod tests {
     #[test]
     fn test_split() {
         let repetitions: u128 = 5;
-        let mut buffer = load_example(&["xes", "book", "L1.xes"]);
+        let mut buffer = load_example(&["book", "L1.xes"]);
 
         let mut log = Log::default();
         log.consume(&mut buffer).unwrap();

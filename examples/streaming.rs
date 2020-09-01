@@ -1,12 +1,12 @@
-use promi::dev_util::expand_static;
 use promi::stream::{
     buffer,
     observer::Observer,
     stats::{Counter, StreamStats},
     xes, Log, StreamSink,
 };
-use std::fs;
-use std::io;
+use std::fs::File;
+use std::io::{stdout, BufReader};
+use std::path::Path;
 
 /// Stream XES string to stdout
 ///
@@ -43,7 +43,7 @@ fn example_1() {
     "#;
 
     let buffer: Vec<u8> = Vec::new();
-    let mut reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
+    let mut reader = xes::XesReader::from(BufReader::new(s.as_bytes()));
     let mut writer = xes::XesWriter::new(buffer, None, None);
 
     println!("parse XES string and render it to byte buffer");
@@ -58,12 +58,12 @@ fn example_1() {
 /// file > XesReader > Log | Buffer > XesWriter > stdout
 ///
 fn example_2() {
-    let path = expand_static(&["xes", "book", "L1.xes"]);
-    let f = io::BufReader::new(fs::File::open(&path).unwrap());
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/xes/book/L1.xes");
+    let file = BufReader::new(File::open(&path).unwrap());
 
     print!("read {:?} to log and count elements: ", &path);
     let mut log = Log::default();
-    let reader = xes::XesReader::from(f);
+    let reader = xes::XesReader::from(file);
     let mut counter = Counter::new(reader);
     log.consume(&mut counter).unwrap();
     println!("{:?}", &log);
@@ -76,7 +76,7 @@ fn example_2() {
     let mut observer = Observer::new(buffer);
     observer.register(StreamStats::default());
 
-    let mut writer = xes::XesWriter::new(io::stdout(), None, None);
+    let mut writer = xes::XesWriter::new(stdout(), None, None);
     writer.consume(&mut observer).unwrap();
 
     println!("\n");

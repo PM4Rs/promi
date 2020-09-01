@@ -14,21 +14,24 @@ use crate::stream::{
 /// A condition aka filter function maps any item to a boolean value
 pub type Condition<'a, T> = Box<dyn Fn(&T) -> Result<bool> + 'a>;
 
+/// A vector of vectors of conditions
+pub type CNF<'a, T> = Vec<Vec<Condition<'a, T>>>;
+
 /// Filter handler for use with an observer
 ///
 /// Contains disjunctive event and trace filters aka conditions. A trace/event is forwarded iff
 /// any condition is true. Consequently, the empty condition set will always evaluate to false.
 ///
 pub struct Filter<'a> {
-    event_filter: Vec<Condition<'a, Event>>,
     trace_filter: Vec<Condition<'a, Trace>>,
+    event_filter: Vec<Condition<'a, Event>>,
 }
 
 impl<'a> Default for Filter<'a> {
     fn default() -> Self {
         Filter {
-            event_filter: Vec::new(),
             trace_filter: Vec::new(),
+            event_filter: Vec::new(),
         }
     }
 }
@@ -71,26 +74,12 @@ pub fn neg<'a, T: 'a + Attributes>(function: Condition<'a, T>) -> Condition<'a, 
 /// provided in a [CNF](https://en.wikipedia.org/wiki/Conjunctive_normal_form) like fashion -- as
 /// conjunctions of disjunctions.
 ///
-pub fn from_cnfs<'a, T: Stream>(
+pub fn from_cnf<'a, T: Stream>(
     stream: T,
-    event_filters: Vec<Vec<Condition<'a, Event>>>,
-    trace_filters: Vec<Vec<Condition<'a, Trace>>>,
+    trace_filters: CNF<'a, Trace>,
+    event_filters: CNF<'a, Event>,
 ) -> Observer<T, Filter<'a>> {
     let mut observer = Observer::new(stream);
-
-    for conjunction in event_filters {
-        let mut filter = Filter::default();
-
-        for disjunction in conjunction {
-            filter.event_filter.push(Box::new(disjunction));
-        }
-
-        // As the empty clause evaluates to false, we inject a pseudo filter function that always
-        // returns true.
-        filter.trace_filter.push(pseudo_filter(true));
-
-        observer.register(filter);
-    }
 
     for conjunction in trace_filters {
         let mut filter = Filter::default();
@@ -106,5 +95,84 @@ pub fn from_cnfs<'a, T: Stream>(
         observer.register(filter);
     }
 
+    for conjunction in event_filters {
+        let mut filter = Filter::default();
+
+        for disjunction in conjunction {
+            filter.event_filter.push(Box::new(disjunction));
+        }
+
+        // As the empty clause evaluates to false, we inject a pseudo filter function that always
+        // returns true.
+        filter.trace_filter.push(pseudo_filter(true));
+
+        observer.register(filter);
+    }
+
     observer
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::stream::buffer::Buffer;
+    use crate::stream::Element;
+    use crate::stream::StreamSink;
+
+    pub struct Sequence {
+        sequence: Vec<String>,
+    }
+
+    impl Default for Sequence {
+        fn default() -> Self {
+            Sequence {
+                sequence: Vec::new(),
+            }
+        }
+    }
+
+    impl StreamSink for Sequence {
+        fn on_element(&mut self, element: Element) -> Result<()> {
+            match element {
+                Element::Trace(trace) => {
+                    self.sequence.push(String::from("["));
+                    for event in trace.events.iter() {
+                        self.sequence.push(match event.get("concept:name") {
+                            Some(name) => name.try_string()?.to_string(),
+                            None => "?".to_string(),
+                        })
+                    }
+                    self.sequence.push(String::from("]"));
+                }
+                Element::Event(event) => self.sequence.push(match event.get("concept:name") {
+                    Some(name) => name.try_string()?.to_string(),
+                    None => "?".to_string(),
+                }),
+                _ => (),
+            }
+
+            Ok(())
+        }
+    }
+
+    impl Sequence {
+        pub fn as_string(&self) -> String {
+            self.sequence.join("")
+        }
+    }
+
+    /// Convenience function for testing filters
+    pub fn test_filter(
+        buffer: Buffer,
+        trace_filter: CNF<Trace>,
+        event_filter: CNF<Event>,
+        sequence: &str,
+    ) {
+        let mut filter = from_cnf(buffer, trace_filter, event_filter);
+
+        let mut result = Sequence::default();
+        result.consume(&mut filter).unwrap();
+
+        assert_eq!(sequence, result.as_string());
+    }
 }

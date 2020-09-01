@@ -116,8 +116,8 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 }
 
                 // apply all handlers on events within trace
-                let mut tmp: Vec<Event> = Vec::new();
-                while let Some(event) = trace.events.pop() {
+                let mut events: Vec<Event> = Vec::new();
+                for event in trace.events.drain(..) {
                     let mut event = Some(event);
 
                     for handler in self.handler.iter_mut() {
@@ -128,11 +128,11 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                     }
 
                     if let Some(event) = event {
-                        tmp.push(event);
+                        events.push(event);
                     }
                 }
-                trace.events.extend(tmp);
 
+                trace.events = events;
                 Element::Trace(trace)
             }
             Element::Event(event) => {

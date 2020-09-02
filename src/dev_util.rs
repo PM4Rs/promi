@@ -2,9 +2,11 @@
 //!
 
 // standard library
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 // third party
 
@@ -118,8 +120,14 @@ pub fn assert_is_not_close(
     )
 }
 
+lazy_static! {
+    /// Cache for example event streams
+    static ref CACHE: Mutex<HashMap<String, Buffer>> = Mutex::new(HashMap::new());
+}
+
 ///
 pub fn load_example(path: &[&str]) -> Buffer {
+    // build path and infer key
     let mut root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("static")
         .join("xes");
@@ -128,16 +136,24 @@ pub fn load_example(path: &[&str]) -> Buffer {
         root = root.join(p);
     }
 
-    let f = io::BufReader::new(File::open(&root).unwrap());
-    let mut reader = XesReader::from(f);
-    let mut buffer = Buffer::default();
+    let key = root.to_str().expect("cannot turn path into string");
 
-    if buffer.consume(&mut reader).is_err() {
-        eprintln!("an error occurred while loading: {:?}", &root);
-        eprintln!("this, however, may be intended");
+    // check whether example was loaded before
+    let mut cache = CACHE.lock().expect("cannot open cache");
+    if !cache.contains_key(key) {
+        let file = io::BufReader::new(File::open(&root).unwrap());
+        let mut reader = XesReader::from(file);
+        let mut buffer = Buffer::default();
+
+        if buffer.consume(&mut reader).is_err() {
+            eprintln!("an error occurred while loading: {:?}", &root);
+            eprintln!("this, however, may be intended");
+        }
+
+        cache.insert(key.to_string(), buffer);
     }
 
-    buffer
+    cache.get(key).unwrap().clone()
 }
 
 #[cfg(test)]

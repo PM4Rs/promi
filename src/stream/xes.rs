@@ -819,6 +819,7 @@ mod tests {
             .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .expect("xmllint installed?");
 

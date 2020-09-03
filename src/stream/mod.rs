@@ -15,6 +15,7 @@
 pub mod buffer;
 pub mod channel;
 pub mod duplicator;
+pub mod extension;
 pub mod filter;
 pub mod observer;
 pub mod split;

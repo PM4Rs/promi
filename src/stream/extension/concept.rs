@@ -1,0 +1,203 @@
+// standard library
+
+// third party
+use regex::Regex;
+
+// local
+use crate::error::{Error, Result};
+use crate::stream::extension::{Attributes, Extension};
+use crate::stream::filter::Condition;
+use crate::stream::ElementType;
+
+#[derive(Debug)]
+pub enum ConceptKey {
+    Name,
+    Instance,
+}
+
+pub struct Concept<'a> {
+    pub name: Option<&'a str>,
+    pub instance: Option<&'a str>,
+    origin: ElementType,
+}
+
+impl<'a> Extension<'a> for Concept<'a> {
+    const NAME: &'static str = "Concept";
+    const PREFIX: &'static str = "concept";
+    const URI: &'static str = "http://www.xes-standard.org/concept.xesext";
+
+    fn view<T: Attributes + ?Sized>(component: &'a T) -> Result<Self> {
+        let mut concept = Concept {
+            name: None,
+            instance: None,
+            origin: component.hint(),
+        };
+
+        // extract name
+        if let Some(name) = component.get("concept:name") {
+            concept.name = Some(name.try_string()?)
+        }
+
+        // extract instance
+        if ElementType::Event == concept.origin {
+            if let Some(instance) = component.get("concept:instance") {
+                concept.instance = Some(instance.try_string()?)
+            }
+        }
+
+        // check if any attribute is present
+        if concept.name.is_none() && concept.instance.is_none() {
+            return Err(Error::ExtensionError(
+                "no concept attribute found".to_string(),
+            ));
+        }
+
+        Ok(concept)
+    }
+}
+
+impl Concept<'_> {
+    pub const NAME: &'static ConceptKey = &ConceptKey::Name;
+    pub const INSTANCE: &'static ConceptKey = &ConceptKey::Instance;
+
+    /// Condition factory that returns a function which checks if a concept equals the given value
+    pub fn filter_eq<'a, T: 'a + Attributes>(
+        attr: &'a ConceptKey,
+        name: &'a str,
+    ) -> Condition<'a, T> {
+        Box::new(move |x: &T| {
+            let component = match attr {
+                ConceptKey::Name => Concept::view(x)?.name,
+                ConceptKey::Instance => Concept::view(x)?.instance,
+            };
+            match component {
+                Some(name_) => Ok(name_ == name),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            }
+        })
+    }
+
+    /// Condition factory that returns a function which checks if a concept value is in the given list
+    pub fn filter_in<'a, T: 'a + Attributes>(
+        attr: &'a ConceptKey,
+        names: &'a [&str],
+    ) -> Condition<'a, T> {
+        Box::new(move |x: &T| {
+            let component = match attr {
+                ConceptKey::Name => Concept::view(x)?.name,
+                ConceptKey::Instance => Concept::view(x)?.instance,
+            };
+            match component {
+                Some(name) => Ok(names.iter().any(|n| *n == name)),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            }
+        })
+    }
+
+    /// Condition factory that returns a function which checks if a concept matches given regex
+    pub fn filter_match<'a, T: 'a + Attributes>(
+        attr: &'a ConceptKey,
+        pattern: &'a Regex,
+    ) -> Condition<'a, T> {
+        Box::new(move |x: &T| {
+            let component = match attr {
+                ConceptKey::Name => Concept::view(x)?.name,
+                ConceptKey::Instance => Concept::view(x)?.instance,
+            };
+            match component {
+                Some(name) => Ok(pattern.is_match(name)),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::dev_util::load_example;
+    use crate::stream::filter::tests::test_filter;
+    use crate::stream::{Element, Stream};
+    use regex::Regex;
+
+    #[test]
+    fn test_view() {
+        let mut buffer = load_example(&["correct", "event_correct_attributes.xes"]);
+
+        while let Some(element) = buffer.next().unwrap() {
+            match element {
+                Element::Trace(trace) => assert!(Concept::view(&trace).is_err()),
+                Element::Event(event) => assert!(Concept::view(&event).is_ok()),
+                _ => (),
+            }
+        }
+    }
+
+    #[test]
+    fn test_filter_eq_in() {
+        let param = [
+            ("L1.xes", "[d][cbd][bcd][bcd][bcd][cbd]"),
+            (
+                "L2.xes",
+                "[cbd][cbbcd][cbbcd][cbd][cbd][cbd][bcbcd][bcbcd][bcd][bccbd][bcd][bcd][cbbccbd]",
+            ),
+            ("L3.xes", "[bcdbcdbdc][bdc][bcdbdc][bdc]"),
+            (
+                "L5.xes",
+                "[bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][bcdb][b][b]",
+            ),
+        ];
+
+        for (f, s) in param.iter() {
+            test_filter(
+                load_example(&["book", f]),
+                vec![],
+                vec![
+                    vec![
+                        Concept::filter_in(Concept::NAME, &["a", "b"]),
+                        Concept::filter_eq(Concept::NAME, "c"),
+                        Concept::filter_eq(Concept::NAME, "d"),
+                    ],
+                    vec![
+                        Concept::filter_eq(Concept::NAME, "b"),
+                        Concept::filter_eq(Concept::NAME, "c"),
+                        Concept::filter_in(Concept::NAME, &["d", "e"]),
+                    ],
+                ],
+                s,
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_match() {
+        let param = [
+            ("L1.xes", "[acbd][acbd]"),
+            ("L2.xes", "[acbd][acbd][acbd][acbd]"),
+            ("L3.xes", "[abdceg][abdceg]"),
+            ("L5.xes", "[abecdbf][abecdbf][abecdbf]"),
+        ];
+
+        let p_case_1 = Regex::new(r#"Case1\.\d"#).unwrap();
+        let p_case_2 = Regex::new(r#"Case2\.\d"#).unwrap();
+        let p_case_3 = Regex::new(r#"Case3\.\d"#).unwrap();
+
+        for (f, s) in param.iter() {
+            test_filter(
+                load_example(&["book", f]),
+                vec![
+                    vec![
+                        Concept::filter_match(Concept::NAME, &p_case_1),
+                        Concept::filter_match(Concept::NAME, &p_case_2),
+                    ],
+                    vec![
+                        Concept::filter_match(Concept::NAME, &p_case_2),
+                        Concept::filter_match(Concept::NAME, &p_case_3),
+                    ],
+                ],
+                vec![],
+                s,
+            );
+        }
+    }
+}

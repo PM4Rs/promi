@@ -49,6 +49,9 @@ pub enum Error {
     ChannelError(String),
 
     #[error("{0}")]
+    ExtensionError(String),
+
+    #[error("{0}")]
     AttributeError(String),
 }
 

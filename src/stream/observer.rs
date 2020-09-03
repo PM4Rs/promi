@@ -90,16 +90,14 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     fn on_element(&mut self, element: Element) -> ResOpt {
         let element = match element {
             Element::Meta(meta) => {
-                self.update_state(ElementType::Meta)?;
+                // Since there's only one meta element allowed, we can directly jump to trace state
+                self.update_state(ElementType::Trace)?;
 
                 // call all the handlers
                 let mut meta = meta;
                 for handler in self.handler.iter_mut() {
                     meta = handler.on_meta(meta)?;
                 }
-
-                // As there's only one meta element allowed, we can directly jump to trace state
-                self.update_state(ElementType::Trace)?;
 
                 Element::Meta(meta)
             }
@@ -152,6 +150,30 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         };
 
         Ok(Some(element))
+    }
+}
+
+impl<I: Stream, H: Handler> From<(I, Vec<H>)> for Observer<I, H> {
+    fn from(components: (I, Vec<H>)) -> Self {
+        let (stream, handlers) = components;
+        let mut observer = Observer::new(stream);
+
+        for handler in handlers {
+            observer.register(handler)
+        }
+
+        observer
+    }
+}
+
+impl<I: Stream, H: Handler> From<(I, H)> for Observer<I, H> {
+    fn from(components: (I, H)) -> Self {
+        let (stream, handler) = components;
+        let mut observer = Observer::new(stream);
+
+        observer.register(handler);
+
+        observer
     }
 }
 

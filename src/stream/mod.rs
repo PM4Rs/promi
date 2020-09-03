@@ -140,16 +140,9 @@ impl TryFrom<Option<String>> for Scope {
     }
 }
 
-/// Provide semantics for sets of attributes
-///
-/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
-/// > An extension defines a (possibly empty) set of attributes for every type of component.
-/// > The extension provides points of reference for interpreting these attributes, and, thus, their
-/// > components. Extensions, therefore, are primarily a vehicle for attaching semantics to a set of
-/// > defined attributes per component.
-///
+/// Extension declaration -- the actual behaviour is implemented via the `Extension` trait
 #[derive(Debug, Clone)]
-pub struct Extension {
+pub struct ExtensionDecl {
     name: String,
     prefix: String,
     uri: String,
@@ -166,28 +159,20 @@ pub struct Global {
     attributes: Vec<Attribute>,
 }
 
-/// Assigns an identity to trace or event
-///
-/// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
-/// > A classifier assigns an identity to each event that
-/// > makes it comparable to others (via their assigned identity). Examples of such identities
-/// > include the descriptive name of the event, the descriptive name of the case the event
-/// > relates to, the descriptive name of the cause of the event, and the descriptive name of the
-/// > case related to the event.
-///
+/// Classifier declaration -- the actual behaviour is implemented by `Classifier`
 #[derive(Debug, Clone)]
-pub struct Classifier {
+pub struct ClassifierDecl {
     name: String,
     scope: Scope,
     keys: String,
 }
 
-/// Holds meta information of an extensible event stream
+/// Container for meta information of an event stream
 #[derive(Debug, Clone)]
 pub struct Meta {
-    extensions: Vec<Extension>,
+    extensions: Vec<ExtensionDecl>,
     globals: Vec<Global>,
-    classifiers: Vec<Classifier>,
+    classifiers: Vec<ClassifierDecl>,
     attributes: BTreeMap<String, AttributeValue>,
 }
 

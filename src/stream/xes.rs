@@ -64,8 +64,8 @@ use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
 use crate::stream::{
-    Attribute, AttributeValue, Classifier, Element, Event, Extension, Global, Log, Meta, ResOpt,
-    Scope, Stream, StreamSink, Trace,
+    Attribute, AttributeValue, ClassifierDecl, Element, Event, ExtensionDecl, Global, Log, Meta,
+    ResOpt, Scope, Stream, StreamSink, Trace,
 };
 use crate::{DateTime, Error, Result};
 
@@ -73,9 +73,9 @@ use crate::{DateTime, Error, Result};
 enum XesElement {
     Attribute(Attribute),
     Value(XesValue),
-    Extension(Extension),
+    Extension(ExtensionDecl),
     Global(Global),
-    Classifier(Classifier),
+    Classifier(ClassifierDecl),
     Event(Event),
     Trace(Trace),
     Log(Log),
@@ -196,11 +196,11 @@ impl TryFrom<XesIntermediate> for XesValue {
     }
 }
 
-impl TryFrom<XesIntermediate> for Extension {
+impl TryFrom<XesIntermediate> for ExtensionDecl {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        Ok(Extension {
+        Ok(ExtensionDecl {
             name: intermediate.get_attr("name")?.clone(),
             prefix: intermediate.get_attr("prefix")?.clone(),
             uri: intermediate.get_attr("uri")?.clone(),
@@ -208,7 +208,7 @@ impl TryFrom<XesIntermediate> for Extension {
     }
 }
 
-impl Extension {
+impl ExtensionDecl {
     fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
         let tag = b"extension";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
@@ -262,11 +262,11 @@ impl Global {
     }
 }
 
-impl TryFrom<XesIntermediate> for Classifier {
+impl TryFrom<XesIntermediate> for ClassifierDecl {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        Ok(Classifier {
+        Ok(ClassifierDecl {
             name: intermediate.get_attr("name")?.clone(),
             scope: Scope::try_from(intermediate.attributes.get("scope").cloned())?,
             keys: intermediate.get_attr("keys")?.clone(),
@@ -274,7 +274,7 @@ impl TryFrom<XesIntermediate> for Classifier {
     }
 }
 
-impl Classifier {
+impl ClassifierDecl {
     fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
         let tag = b"classifier";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
@@ -440,9 +440,13 @@ impl TryFrom<XesIntermediate> for XesElement {
                 Ok(XesElement::Attribute(Attribute::try_from(intermediate)?))
             }
             "values" => Ok(XesElement::Value(XesValue::try_from(intermediate)?)),
-            "extension" => Ok(XesElement::Extension(Extension::try_from(intermediate)?)),
+            "extension" => Ok(XesElement::Extension(ExtensionDecl::try_from(
+                intermediate,
+            )?)),
             "global" => Ok(XesElement::Global(Global::try_from(intermediate)?)),
-            "classifier" => Ok(XesElement::Classifier(Classifier::try_from(intermediate)?)),
+            "classifier" => Ok(XesElement::Classifier(ClassifierDecl::try_from(
+                intermediate,
+            )?)),
             "event" => Ok(XesElement::Event(Event::try_from(intermediate)?)),
             "trace" => Ok(XesElement::Trace(Trace::try_from(intermediate)?)),
             "log" => Ok(XesElement::Log(Log::try_from(intermediate)?)),

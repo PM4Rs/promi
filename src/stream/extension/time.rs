@@ -8,7 +8,8 @@ use chrono::Duration;
 use crate::error::Result;
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
-use crate::stream::ElementType;
+use crate::stream::validator::ValidatorFn;
+use crate::stream::{ElementType, Meta};
 use crate::{DateTime, Error};
 use std::ops::Neg;
 
@@ -126,6 +127,31 @@ impl<'a> Extension<'a> for Time<'a> {
 
         Ok(Time { time, origin })
     }
+
+    fn validator(_meta: &Meta) -> ValidatorFn {
+        Box::new(|x| {
+            let children = x.children();
+
+            for slice in children[..].windows(2) {
+                match slice {
+                    [a, b] => {
+                        let ts1 = Time::view(*a)?.time;
+                        let ts2 = Time::view(*b)?.time;
+
+                        if ts2.is_before(&ts1) {
+                            return Err(Error::ValidationError(format!(
+                                "at least two child elements of \"{:?}\" appear not to be in chronological order ({:?}, {:?})",
+                                x.hint(), ts1, ts2
+                            )));
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+
+            Ok(())
+        })
+    }
 }
 
 impl Time<'_> {
@@ -166,7 +192,9 @@ mod tests {
     use super::*;
     use crate::dev_util::load_example;
     use crate::stream::filter::tests::test_filter;
-    use crate::stream::{Element, Stream};
+    use crate::stream::observer::Observer;
+    use crate::stream::validator::Validator;
+    use crate::stream::{consume, Element, Stream};
 
     #[test]
     fn test_view() {
@@ -249,7 +277,7 @@ mod tests {
             "[abc][defg][][no][pqrs][tuvw]",
         );
         test_filter(
-            buffer.clone(),
+            buffer,
             vec![vec![
                 Time::filter_before(&TimeType::Interval((&a, &b))),
                 Time::filter_after(&TimeType::Timestamp(&b)),
@@ -311,5 +339,17 @@ mod tests {
             vec![],
             "[hijk]",
         );
+    }
+
+    #[test]
+    fn test_validation() {
+        let buffer = load_example(&["non_validating", "event_incorrect_order.xes"]);
+        let mut validator = Observer::from((buffer, Validator::default()));
+
+        if let Err(Error::ValidationError(msg)) = consume(&mut validator) {
+            assert!(msg.contains(r#"at least two child elements of "Trace" appear not to be in chronological order (Timestamp(2000-01-01T00:00:00+00:00), Timestamp(1999-01-01T00:00:00+00:00))"#))
+        } else {
+            panic!("expected validation error")
+        }
     }
 }

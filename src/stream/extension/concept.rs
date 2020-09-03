@@ -7,7 +7,8 @@ use regex::Regex;
 use crate::error::{Error, Result};
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
-use crate::stream::ElementType;
+use crate::stream::validator::ValidatorFn;
+use crate::stream::{ElementType, Meta};
 
 #[derive(Debug)]
 pub enum ConceptKey {
@@ -45,14 +46,16 @@ impl<'a> Extension<'a> for Concept<'a> {
             }
         }
 
-        // check if any attribute is present
-        if concept.name.is_none() && concept.instance.is_none() {
-            return Err(Error::ExtensionError(
-                "no concept attribute found".to_string(),
-            ));
-        }
-
         Ok(concept)
+    }
+
+    fn validator(_meta: &Meta) -> ValidatorFn {
+        Box::new(|x| {
+            let _ = Concept::view(*x)?;
+            // since all error classes are caught until creation of a concept instance there's
+            // nothing else to do here :)
+            Ok(())
+        })
     }
 }
 
@@ -126,8 +129,8 @@ pub mod tests {
 
         while let Some(element) = buffer.next().unwrap() {
             match element {
-                Element::Trace(trace) => assert!(Concept::view(&trace).is_err()),
-                Element::Event(event) => assert!(Concept::view(&event).is_ok()),
+                Element::Trace(trace) => assert!(Concept::view(&trace).unwrap().name.is_none()),
+                Element::Event(event) => assert!(Concept::view(&event).unwrap().name.is_some()),
                 _ => (),
             }
         }

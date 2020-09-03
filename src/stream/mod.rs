@@ -20,6 +20,7 @@ pub mod filter;
 pub mod observer;
 pub mod split;
 pub mod stats;
+pub mod validator;
 pub mod xes;
 pub mod xml_util;
 
@@ -32,6 +33,18 @@ use std::fmt::Debug;
 
 // local
 use crate::{DateTime, Error, Result};
+
+/// Mirrors types available in `AttributeValue` enum
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttributeType {
+    String,
+    Date,
+    Int,
+    Float,
+    Boolean,
+    Id,
+    List,
+}
 
 /// Attribute value type
 #[derive(Debug, Clone)]
@@ -46,6 +59,7 @@ pub enum AttributeValue {
 }
 
 impl AttributeValue {
+    /// Try to cast attribute to string
     pub fn try_string(&self) -> Result<&String> {
         match self {
             AttributeValue::String(string) => Ok(string),
@@ -53,6 +67,7 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to datetime
     pub fn try_date(&self) -> Result<&DateTime> {
         match self {
             AttributeValue::Date(timestamp) => Ok(timestamp),
@@ -60,6 +75,7 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to integer
     pub fn try_int(&self) -> Result<&i64> {
         match self {
             AttributeValue::Int(integer) => Ok(integer),
@@ -67,6 +83,7 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to float
     pub fn try_float(&self) -> Result<&f64> {
         match self {
             AttributeValue::Float(float) => Ok(float),
@@ -74,6 +91,7 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to boolean
     pub fn try_boolean(&self) -> Result<&bool> {
         match self {
             AttributeValue::Boolean(boolean) => Ok(boolean),
@@ -81,6 +99,7 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to id
     pub fn try_id(&self) -> Result<&String> {
         match self {
             AttributeValue::Id(id) => Ok(id),
@@ -88,10 +107,24 @@ impl AttributeValue {
         }
     }
 
+    /// Try to cast attribute to list
     pub fn try_list(&self) -> Result<&[Attribute]> {
         match self {
             AttributeValue::List(list) => Ok(list),
             other => Err(Error::AttributeError(format!("{:?} is no list", other))),
+        }
+    }
+
+    /// Tell the caller what type this attribute value is of
+    pub fn hint(&self) -> AttributeType {
+        match self {
+            AttributeValue::String(_) => AttributeType::String,
+            AttributeValue::Date(_) => AttributeType::Date,
+            AttributeValue::Int(_) => AttributeType::Int,
+            AttributeValue::Float(_) => AttributeType::Float,
+            AttributeValue::Boolean(_) => AttributeType::Boolean,
+            AttributeValue::Id(_) => AttributeType::Id,
+            AttributeValue::List(_) => AttributeType::List,
         }
     }
 }
@@ -115,6 +148,10 @@ impl Attribute {
             key,
             value: attribute,
         }
+    }
+
+    fn hint(&self) -> AttributeType {
+        self.value.hint()
     }
 }
 
@@ -158,6 +195,30 @@ pub struct ExtensionDecl {
 pub struct Global {
     scope: Scope,
     attributes: Vec<Attribute>,
+}
+
+impl Global {
+    /// Validate any item that implements the `Attributes` trait without considering its scope
+    pub fn validate(&self, element: &dyn Attributes) -> Result<()> {
+        for attribute in self.attributes.iter() {
+            if let Some(other) = element.get(&attribute.key) {
+                if attribute.hint() != other.hint() {
+                    return Err(Error::ValidationError(format!(
+                        "Expected \"{:?}\" to be of type {:?} but got {:?} instead",
+                        attribute.key,
+                        attribute.hint(),
+                        other.hint()
+                    )));
+                }
+            } else {
+                return Err(Error::ValidationError(format!(
+                    "Couldn't find an attribute with key \"{:?}\"",
+                    attribute.key
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Classifier declaration -- the actual behaviour is implemented by `Classifier`

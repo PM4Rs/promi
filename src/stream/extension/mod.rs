@@ -21,7 +21,8 @@ use std::sync::Mutex;
 // third party
 
 // local
-use crate::stream::{Attributes, ExtensionDecl};
+use crate::stream::validator::ValidatorFn;
+use crate::stream::{Attributes, ExtensionDecl, Meta};
 use crate::{Error, Result};
 
 // expose extensions
@@ -33,12 +34,18 @@ pub use time::Time;
 pub struct RegistryEntry {
     key: &'static str,
     _declare: Box<dyn Fn() -> ExtensionDecl + Send>,
+    _validator: Box<dyn Fn(&Meta) -> ValidatorFn + Send>,
 }
 
 impl RegistryEntry {
     /// Wrapper for an extension's declare method
     pub fn declare(&self) -> ExtensionDecl {
         (self._declare)()
+    }
+
+    /// Wrapper for an extension's validator method
+    pub fn validator(&self, meta: &Meta) -> ValidatorFn {
+        (self._validator)(meta)
     }
 }
 
@@ -124,6 +131,9 @@ pub trait Extension<'a> {
         }
     }
 
+    /// Generate a validation function from stream meta data
+    fn validator(_meta: &Meta) -> ValidatorFn;
+
     /// Generate an entry as used for extension registries
     fn registry_entry() -> RegistryEntry
     where
@@ -132,6 +142,7 @@ pub trait Extension<'a> {
         RegistryEntry {
             key: Self::PREFIX,
             _declare: Box::new(Self::declare),
+            _validator: Box::new(Self::validator),
         }
     }
 

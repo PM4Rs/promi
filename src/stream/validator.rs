@@ -96,6 +96,10 @@ mod tests {
 
     #[test]
     fn test_globals_validation() {
+        let buffer = load_example(&["test", "extension_full.xes"]);
+        let mut validator = Observer::from((buffer, Validator::default()));
+        consume(&mut validator).expect("validation is expected to succeed");
+
         let buffer = load_example(&["non_validating", "globals_violation_type.xes"]);
         let mut validator = Observer::from((buffer, Validator::default()));
 

@@ -125,7 +125,7 @@ lazy_static! {
     static ref CACHE: Mutex<HashMap<String, Buffer>> = Mutex::new(HashMap::new());
 }
 
-///
+/// Read an example XES file from the `static/xes` directory into a stream buffer
 pub fn load_example(path: &[&str]) -> Buffer {
     // build path and infer key
     let mut root = Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -63,53 +63,48 @@ impl Concept<'_> {
     pub const NAME: &'static ConceptKey = &ConceptKey::Name;
     pub const INSTANCE: &'static ConceptKey = &ConceptKey::Instance;
 
+    fn by_key(&self, attr: &ConceptKey) -> Option<&str> {
+        match attr {
+            ConceptKey::Name => self.name,
+            ConceptKey::Instance => self.instance,
+        }
+    }
+
     /// Condition factory that returns a function which checks if a concept equals the given value
     pub fn filter_eq<'a, T: 'a + Attributes>(
-        attr: &'a ConceptKey,
-        name: &'a str,
+        key: &'a ConceptKey,
+        value: &'a str,
     ) -> Condition<'a, T> {
         Box::new(move |x: &T| {
-            let component = match attr {
-                ConceptKey::Name => Concept::view(x)?.name,
-                ConceptKey::Instance => Concept::view(x)?.instance,
-            };
-            match component {
-                Some(name_) => Ok(name_ == name),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            match Concept::view(x)?.by_key(key)  {
+                Some(value_) => Ok(value_ == value),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
             }
         })
     }
 
     /// Condition factory that returns a function which checks if a concept value is in the given list
     pub fn filter_in<'a, T: 'a + Attributes>(
-        attr: &'a ConceptKey,
-        names: &'a [&str],
+        key: &'a ConceptKey,
+        values: &'a [&str],
     ) -> Condition<'a, T> {
         Box::new(move |x: &T| {
-            let component = match attr {
-                ConceptKey::Name => Concept::view(x)?.name,
-                ConceptKey::Instance => Concept::view(x)?.instance,
-            };
-            match component {
-                Some(name) => Ok(names.iter().any(|n| *n == name)),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            match Concept::view(x)?.by_key(key) {
+                Some(value) => Ok(values.iter().any(|n| *n == value)),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
             }
         })
     }
 
     /// Condition factory that returns a function which checks if a concept matches given regex
     pub fn filter_match<'a, T: 'a + Attributes>(
-        attr: &'a ConceptKey,
+        key: &'a ConceptKey,
         pattern: &'a Regex,
     ) -> Condition<'a, T> {
         Box::new(move |x: &T| {
-            let component = match attr {
-                ConceptKey::Name => Concept::view(x)?.name,
-                ConceptKey::Instance => Concept::view(x)?.instance,
-            };
-            match component {
-                Some(name) => Ok(pattern.is_match(name)),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", attr))),
+            match Concept::view(x)?.by_key(key) {
+                Some(value) => Ok(pattern.is_match(value)),
+                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
             }
         })
     }

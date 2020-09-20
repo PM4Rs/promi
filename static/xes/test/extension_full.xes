@@ -3,12 +3,14 @@
 <!-- promi is available at https://crates.io/crates/promi -->
 <log xes.version="1.0">
 	<extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext"/>
+	<extension name="Organizational" prefix="org" uri="http://www.xes-standard.org/org.xesext"/>
 	<extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
 	<global scope="trace">
 		<string key="concept:name" value="__INVALID__"/>
 	</global>
 	<global scope="event">
 		<string key="concept:name" value="__INVALID__"/>
+		<string key="org:resource" value="__INVALID__"/>
 		<date key="time:timestamp" value="1970-01-01T00:00:00.000+00:00"/>
 	</global>
 	<classifier name="EventName" keys="concept:name"/>
@@ -17,33 +19,51 @@
 		<string key="concept:name" value="Case3.0"/>
 		<event>
 			<date key="time:timestamp" value="1987-07-27T13:37:42.000+00:00"/>
+			<string key="org:resource" value="A"/>
 			<string key="concept:name" value="a"/>
+			<string key="concept:instance" value="1"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-27T13:38:42.000+00:00"/>
+			<string key="org:resource" value="B"/>
 			<string key="concept:name" value="b"/>
+			<string key="concept:instance" value="2"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-27T13:39:42.000+00:00"/>
+			<string key="org:resource" value="C"/>
 			<string key="concept:name" value="c"/>
+			<string key="concept:instance" value="3"/>
 		</event>
 	</trace>
 	<trace>
 		<string key="concept:name" value="Case2.0"/>
 		<event>
 			<date key="time:timestamp" value="1987-07-28T13:37:42.000+00:00"/>
+			<string key="org:resource" value="D"/>
+			<string key="org:role" value="1"/>
+			<string key="org:group" value="5"/>
 			<string key="concept:name" value="d"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-28T13:38:42.000+00:00"/>
+			<string key="org:resource" value="E"/>
+			<string key="org:role" value="2"/>
+			<string key="org:group" value="6"/>
 			<string key="concept:name" value="e"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-28T13:39:42.000+00:00"/>
+			<string key="org:resource" value="F"/>
+			<string key="org:role" value="3"/>
+			<string key="org:group" value="7"/>
 			<string key="concept:name" value="f"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-28T13:40:42.000+00:00"/>
+			<string key="org:resource" value="G"/>
+			<string key="org:role" value="4"/>
+			<string key="org:group" value="8"/>
 			<string key="concept:name" value="g"/>
 		</event>
 	</trace>
@@ -51,18 +71,22 @@
 		<string key="concept:name" value="Case1.2"/>
 		<event>
 			<date key="time:timestamp" value="1987-07-29T13:37:42.000+00:00"/>
+			<string key="org:resource" value="H"/>
 			<string key="concept:name" value="h"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-29T13:38:42.000+00:00"/>
+			<string key="org:resource" value="I"/>
 			<string key="concept:name" value="i"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-29T13:39:42.000+00:00"/>
+			<string key="org:resource" value="J"/>
 			<string key="concept:name" value="j"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-29T13:40:42.000+00:00"/>
+			<string key="org:resource" value="K"/>
 			<string key="concept:name" value="k"/>
 		</event>
 	</trace>
@@ -70,18 +94,22 @@
 		<string key="concept:name" value="Case1.1"/>
 		<event>
 			<date key="time:timestamp" value="1987-07-30T13:37:42.000+00:00"/>
+			<string key="org:resource" value="L"/>
 			<string key="concept:name" value="l"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-30T13:38:42.000+00:00"/>
+			<string key="org:resource" value="M"/>
 			<string key="concept:name" value="m"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-30T13:39:42.000+00:00"/>
+			<string key="org:resource" value="N"/>
 			<string key="concept:name" value="n"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-30T13:40:42.000+00:00"/>
+			<string key="org:resource" value="O"/>
 			<string key="concept:name" value="o"/>
 		</event>
 	</trace>
@@ -89,18 +117,22 @@
 		<string key="concept:name" value="Case1.0"/>
 		<event>
 			<date key="time:timestamp" value="1987-07-31T13:37:42.000+00:00"/>
+			<string key="org:resource" value="P"/>
 			<string key="concept:name" value="p"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-31T13:38:42.000+00:00"/>
+			<string key="org:resource" value="Q"/>
 			<string key="concept:name" value="q"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-31T13:39:42.000+00:00"/>
+			<string key="org:resource" value="R"/>
 			<string key="concept:name" value="r"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-07-31T13:40:42.000+00:00"/>
+			<string key="org:resource" value="S"/>
 			<string key="concept:name" value="s"/>
 		</event>
 	</trace>
@@ -108,18 +140,22 @@
 		<string key="concept:name" value="Case2.1"/>
 		<event>
 			<date key="time:timestamp" value="1987-08-01T13:37:42.000+00:00"/>
+			<string key="org:resource" value="T"/>
 			<string key="concept:name" value="t"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-08-01T13:38:42.000+00:00"/>
+			<string key="org:resource" value="U"/>
 			<string key="concept:name" value="u"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-08-01T13:39:42.000+00:00"/>
+			<string key="org:resource" value="V"/>
 			<string key="concept:name" value="v"/>
 		</event>
 		<event>
 			<date key="time:timestamp" value="1987-08-01T13:40:42.000+00:00"/>
+			<string key="org:resource" value="W"/>
 			<string key="concept:name" value="w"/>
 		</event>
 	</trace>

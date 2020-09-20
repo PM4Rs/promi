@@ -12,9 +12,11 @@
 
 // modules
 pub mod concept;
+pub mod organizational;
 pub mod time;
 
 // standard library
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Mutex;
 
@@ -27,7 +29,7 @@ use crate::{Error, Result};
 
 // expose extensions
 pub use concept::Concept;
-use std::collections::HashMap;
+pub use organizational::Org;
 pub use time::Time;
 
 /// Helper struct that holds references to object safe parts of an extension
@@ -94,6 +96,7 @@ impl Default for Registry {
         let mut registry = Self::new();
 
         registry.register(Concept::registry_entry());
+        registry.register(Org::registry_entry());
         registry.register(Time::registry_entry());
 
         registry

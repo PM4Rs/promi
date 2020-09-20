@@ -223,12 +223,14 @@ mod tests {
                 Time::filter_eq(&TimeType::Interval((&b, &b))),
             ]],
             "[][dg][][][][]",
+            None,
         );
         test_filter(
             buffer,
             vec![vec![Time::filter_eq(&TimeType::Interval((&a, &b)))]],
             vec![],
             "[defg]",
+            None,
         );
     }
 
@@ -247,6 +249,7 @@ mod tests {
                 Time::filter_eq_tol(&TimeType::Interval((&b, &b)), &tolerance),
             ]],
             "[][][hi][no][][]",
+            None,
         );
 
         let tolerance = Duration::minutes(5);
@@ -258,6 +261,7 @@ mod tests {
             )]],
             vec![],
             "[hijk]",
+            None,
         );
     }
 
@@ -275,6 +279,7 @@ mod tests {
                 Time::filter_after(&TimeType::Interval((&a, &b))),
             ]],
             "[abc][defg][][no][pqrs][tuvw]",
+            None,
         );
         test_filter(
             buffer,
@@ -284,6 +289,7 @@ mod tests {
             ]],
             vec![],
             "[abc][defg][pqrs][tuvw]",
+            None,
         );
     }
 
@@ -304,12 +310,14 @@ mod tests {
                 Time::filter_in(&TimeType::Interval((&b, &c))),
             ]],
             "[][dg][hi][][][]",
+            None,
         );
         test_filter(
             buffer.clone(),
             vec![vec![Time::filter_in(&TimeType::Interval((&a, &d)))]],
             vec![],
             "[defg][hijk]",
+            None,
         );
 
         // test starts in
@@ -318,12 +326,14 @@ mod tests {
             vec![],
             vec![vec![Time::filter_starts_in(&TimeType::Interval((&c, &d)))]],
             "[][][jk][lm][][]",
+            None,
         );
         test_filter(
             buffer.clone(),
             vec![vec![Time::filter_starts_in(&TimeType::Interval((&c, &d)))]],
             vec![],
             "[lmno]",
+            None,
         );
 
         // test ends in
@@ -332,12 +342,14 @@ mod tests {
             vec![],
             vec![vec![Time::filter_ends_in(&TimeType::Interval((&c, &d)))]],
             "[][][jk][lm][][]",
+            None,
         );
         test_filter(
             buffer,
             vec![vec![Time::filter_ends_in(&TimeType::Interval((&c, &d)))]],
             vec![],
             "[hijk]",
+            None,
         );
     }
 

@@ -75,11 +75,9 @@ impl Concept<'_> {
         key: &'a ConceptKey,
         value: &'a str,
     ) -> Condition<'a, T> {
-        Box::new(move |x: &T| {
-            match Concept::view(x)?.by_key(key)  {
-                Some(value_) => Ok(value_ == value),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
-            }
+        Box::new(move |x: &T| match Concept::view(x)?.by_key(key) {
+            Some(value_) => Ok(value_ == value),
+            None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
         })
     }
 
@@ -88,11 +86,9 @@ impl Concept<'_> {
         key: &'a ConceptKey,
         values: &'a [&str],
     ) -> Condition<'a, T> {
-        Box::new(move |x: &T| {
-            match Concept::view(x)?.by_key(key) {
-                Some(value) => Ok(values.iter().any(|n| *n == value)),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
-            }
+        Box::new(move |x: &T| match Concept::view(x)?.by_key(key) {
+            Some(value) => Ok(values.iter().any(|n| *n == value)),
+            None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
         })
     }
 
@@ -101,11 +97,9 @@ impl Concept<'_> {
         key: &'a ConceptKey,
         pattern: &'a Regex,
     ) -> Condition<'a, T> {
-        Box::new(move |x: &T| {
-            match Concept::view(x)?.by_key(key) {
-                Some(value) => Ok(pattern.is_match(value)),
-                None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
-            }
+        Box::new(move |x: &T| match Concept::view(x)?.by_key(key) {
+            Some(value) => Ok(pattern.is_match(value)),
+            None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
         })
     }
 }
@@ -163,6 +157,7 @@ pub mod tests {
                     ],
                 ],
                 s,
+                None,
             );
         }
     }
@@ -195,6 +190,7 @@ pub mod tests {
                 ],
                 vec![],
                 s,
+                None,
             );
         }
     }

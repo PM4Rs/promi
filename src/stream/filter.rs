@@ -119,45 +119,54 @@ pub mod tests {
     use crate::stream::Element;
     use crate::stream::StreamSink;
 
-    pub struct Sequence {
-        sequence: Vec<String>,
+    pub type TokenMapper = Box<dyn Fn(&dyn Attributes) -> Result<String>>;
+
+    pub struct Sequencer {
+        token_mapper: TokenMapper,
+        tokens: Vec<String>,
     }
 
-    impl Default for Sequence {
-        fn default() -> Self {
-            Sequence {
-                sequence: Vec::new(),
+    impl Sequencer {
+        pub fn new(token_mapper: TokenMapper) -> Self {
+            Sequencer {
+                token_mapper,
+                tokens: Vec::new(),
             }
+        }
+
+        pub fn as_string(&self) -> String {
+            self.tokens.join("")
         }
     }
 
-    impl StreamSink for Sequence {
+    impl Default for Sequencer {
+        /// The default Sequencer uses the `concept:name` attribute as token
+        fn default() -> Self {
+            Self::new(Box::new(|element| {
+                Ok(match element.get("concept:name") {
+                    Some(name) => name.try_string()?,
+                    None => "?",
+                }
+                .to_string())
+            }))
+        }
+    }
+
+    impl StreamSink for Sequencer {
         fn on_element(&mut self, element: Element) -> Result<()> {
             match element {
                 Element::Trace(trace) => {
-                    self.sequence.push(String::from("["));
+                    self.tokens.push(String::from("["));
                     for event in trace.events.iter() {
-                        self.sequence.push(match event.get("concept:name") {
-                            Some(name) => name.try_string()?.to_string(),
-                            None => "?".to_string(),
-                        })
+                        self.tokens.push((self.token_mapper)(event)?)
                     }
-                    self.sequence.push(String::from("]"));
+                    self.tokens.push(String::from("]"));
                 }
-                Element::Event(event) => self.sequence.push(match event.get("concept:name") {
-                    Some(name) => name.try_string()?.to_string(),
-                    None => "?".to_string(),
-                }),
+                Element::Event(event) => self.tokens.push((self.token_mapper)(&event)?),
                 _ => (),
             }
 
             Ok(())
-        }
-    }
-
-    impl Sequence {
-        pub fn as_string(&self) -> String {
-            self.sequence.join("")
         }
     }
 
@@ -167,10 +176,14 @@ pub mod tests {
         trace_filter: CNF<Trace>,
         event_filter: CNF<Event>,
         sequence: &str,
+        token_mapper: Option<TokenMapper>,
     ) {
         let mut filter = from_cnf(buffer, trace_filter, event_filter);
+        let mut result = match token_mapper {
+            Some(mapper) => Sequencer::new(mapper),
+            None => Sequencer::default(),
+        };
 
-        let mut result = Sequence::default();
         result.consume(&mut filter).unwrap();
 
         assert_eq!(sequence, result.as_string());

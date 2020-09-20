@@ -68,6 +68,11 @@ pub fn neg<'a, T: 'a + Attributes>(function: Condition<'a, T>) -> Condition<'a, 
     Box::new(move |x: &T| Ok(!function(x)?))
 }
 
+/// Create a filter function that inverts the given filter function
+pub fn drop_err<'a, T: 'a + Attributes>(function: Condition<'a, T>) -> Condition<'a, T> {
+    Box::new(move |x: &T| Ok(function(x).unwrap_or(false)))
+}
+
 /// Create an observer based filter from filter functions given in conjunctive normal form
 ///
 /// Creates an instance of observer and populate it with filter handlers. The filter conditions are

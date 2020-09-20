@@ -10,46 +10,42 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 use crate::error::{Error, Result};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
-/// Represents the sending endpoint of an asynchronous channel
+trait ChannelSender {
+    fn send_res_opt(&mut self, element: ResOpt) -> Result<()>;
+}
+
+impl ChannelSender for Sender<ResOpt> {
+    fn send_res_opt(&mut self, element: ResOpt) -> Result<()> {
+        self.send(element)?;
+        Ok(())
+    }
+}
+
+impl ChannelSender for SyncSender<ResOpt> {
+    fn send_res_opt(&mut self, element: ResOpt) -> Result<()> {
+        self.send(element)?;
+        Ok(())
+    }
+}
+
+/// Represents the sending endpoint of a (synchronous) channel
 pub struct StreamSender {
-    sender: Sender<ResOpt>,
+    sender: Box<dyn ChannelSender + Send>,
 }
 
 impl StreamSink for StreamSender {
     fn on_element(&mut self, element: Element) -> Result<()> {
-        self.sender.send(Ok(Some(element)))?;
+        self.sender.send_res_opt(Ok(Some(element)))?;
         Ok(())
     }
 
     fn on_close(&mut self) -> Result<()> {
-        self.sender.send(Ok(None))?;
+        self.sender.send_res_opt(Ok(None))?;
         Ok(())
     }
 
     fn on_error(&mut self, error: Error) -> Result<()> {
-        self.sender.send(Err(error))?;
-        Ok(())
-    }
-}
-
-/// Represents the sending endpoint of a synchronous channel
-pub struct SyncStreamSender {
-    sender: SyncSender<ResOpt>,
-}
-
-impl StreamSink for SyncStreamSender {
-    fn on_element(&mut self, element: Element) -> Result<()> {
-        self.sender.send(Ok(Some(element)))?;
-        Ok(())
-    }
-
-    fn on_close(&mut self) -> Result<()> {
-        self.sender.send(Ok(None))?;
-        Ok(())
-    }
-
-    fn on_error(&mut self, error: Error) -> Result<()> {
-        self.sender.send(Err(error))?;
+        self.sender.send_res_opt(Err(error))?;
         Ok(())
     }
 }
@@ -65,26 +61,26 @@ impl Stream for StreamReceiver {
     }
 }
 
-/// Create a thread safe asynchronous stream channel
-///
-/// A stream channel is represented by a sender and a receiver, whereby the sender is a stream sink
-/// and the receiver a stream. The channel provides a theoretically infinite sized buffer. Hence,
-/// sending will never block.
-///
-pub fn stream_channel() -> (StreamSender, StreamReceiver) {
-    let (sender, receiver) = channel();
-    (StreamSender { sender }, StreamReceiver { receiver })
-}
+/// A stream sender-receiver pair
+pub type StreamChannel = (StreamSender, StreamReceiver);
 
-/// Create a thread safe synchronous stream channel
+/// Create a thread safe (a)synchronous stream channel
 ///
 /// A stream channel is represented by a sender and a receiver, whereby the sender is a stream sink
-/// and the receiver a stream. The channel provides a buffer of predefined size (0 is okay). Hence,
-/// sending will never once the buffer is full.
+/// and the receiver a stream. If the bound chosen is not none, the channel will provide a
+/// theoretically infinite sized buffer. Hence, sending will never block.
 ///
-pub fn sync_stream_channel(bound: usize) -> (SyncStreamSender, StreamReceiver) {
-    let (sender, receiver) = sync_channel(bound);
-    (SyncStreamSender { sender }, StreamReceiver { receiver })
+pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
+    match bound {
+        Some(bound) => {
+            let (sender, receiver) = sync_channel(bound);
+            (StreamSender { sender: Box::new(sender) }, StreamReceiver { receiver })
+        },
+        None => {
+            let (sender, receiver) = channel();
+            (StreamSender { sender: Box::new(sender) }, StreamReceiver { receiver })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -104,12 +100,12 @@ mod tests {
     ///
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
-        let (s_t0_t1, mut r_t0_t1) = stream_channel();
-        let (s_t0_t2, mut r_t0_t2) = stream_channel();
+        let (s_t0_t1, mut r_t0_t1) = stream_channel(None);
+        let (s_t0_t2, mut r_t0_t2) = stream_channel(None);
 
         // channels from helper threads back to main thread
-        let (mut s_t1_t0, r_t1_t0) = sync_stream_channel(0);
-        let (mut s_t2_t0, r_t2_t0) = sync_stream_channel(64);
+        let (mut s_t1_t0, r_t1_t0) = stream_channel(Some(0));
+        let (mut s_t2_t0, r_t2_t0) = stream_channel(Some(64));
 
         // spawn helper threads
         let t_1 = thread::spawn(move || {
@@ -173,22 +169,22 @@ mod tests {
 
     #[test]
     fn test_channel_error() {
-        let (mut s, r) = stream_channel();
+        let (mut s, r) = stream_channel(None);
         drop(r);
 
         assert!(s.on_close().is_err());
 
-        let (mut s, r) = sync_stream_channel(42);
+        let (mut s, r) = stream_channel(Some(42));
         drop(r);
 
         assert!(s.on_close().is_err());
 
-        let (s, mut r) = stream_channel();
+        let (s, mut r) = stream_channel(None);
         drop(s);
 
         assert!(r.next().is_err());
 
-        let (s, mut r) = sync_stream_channel(0);
+        let (s, mut r) = stream_channel(Some(0));
         drop(s);
 
         assert!(r.next().is_err());

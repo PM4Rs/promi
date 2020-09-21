@@ -1,5 +1,6 @@
+use promi::stream::validator::Validator;
 use promi::stream::{
-    buffer,
+    buffer, consume,
     observer::Observer,
     stats::{Counter, StreamStats},
     xes, Log, StreamSink,
@@ -84,7 +85,22 @@ fn example_2() {
     println!("{}", observer.release().unwrap());
 }
 
+/// Store XES file stream in log, convert log to stream buffer and stream it to stdout
+///
+/// file > XesReader > Validator
+///
+fn example_3() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/xes/book/bigger-example.xes");
+    let file = BufReader::new(File::open(&path).unwrap());
+
+    let reader = xes::XesReader::from(file);
+    let mut validator = Observer::from((reader, Validator::default()));
+
+    consume(&mut validator).unwrap();
+}
+
 fn main() {
     example_1();
     example_2();
+    example_3();
 }

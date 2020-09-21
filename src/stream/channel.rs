@@ -74,11 +74,21 @@ pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
     match bound {
         Some(bound) => {
             let (sender, receiver) = sync_channel(bound);
-            (StreamSender { sender: Box::new(sender) }, StreamReceiver { receiver })
-        },
+            (
+                StreamSender {
+                    sender: Box::new(sender),
+                },
+                StreamReceiver { receiver },
+            )
+        }
         None => {
             let (sender, receiver) = channel();
-            (StreamSender { sender: Box::new(sender) }, StreamReceiver { receiver })
+            (
+                StreamSender {
+                    sender: Box::new(sender),
+                },
+                StreamReceiver { receiver },
+            )
         }
     }
 }

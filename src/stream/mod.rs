@@ -521,7 +521,7 @@ pub trait StreamSink {
     }
 
     /// Invokes a stream as long as it provides new elements.
-    fn consume<T: Stream>(&mut self, stream: &mut T) -> Result<()> {
+    fn consume(&mut self, stream: &mut dyn Stream) -> Result<()> {
         self.on_open()?;
 
         loop {

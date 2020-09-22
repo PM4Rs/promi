@@ -16,5 +16,5 @@ before_script:
   - cargo generate-lockfile
 
 script:
-  - cargo build --verbose --workspace
+  - cargo check --verbose --workspace
   - cargo test --verbose --workspace

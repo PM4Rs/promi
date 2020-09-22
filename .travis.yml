@@ -13,7 +13,6 @@ before_install:
   - sudo apt-get -y install libxml2-utils openssl
 
 before_script:
-  - cargo install --force cargo-audit
   - cargo generate-lockfile
 
 script:

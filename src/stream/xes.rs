@@ -73,9 +73,9 @@ use crate::{DateTime, Error, Result};
 enum XesElement {
     Attribute(Attribute),
     Value(XesValue),
-    Extension(ExtensionDecl),
+    ExtensionDecl(ExtensionDecl),
     Global(Global),
-    Classifier(ClassifierDecl),
+    ClassifierDecl(ClassifierDecl),
     Event(Event),
     Trace(Trace),
     Log(Log),
@@ -89,17 +89,17 @@ struct XesValue {
 impl TryFrom<XesIntermediate> for Attribute {
     type Error = Error;
 
-    fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let key_str = intermediate.get_attr("key")?.clone();
-        let val_str = intermediate.get_attr("value");
+    fn try_from(mut intermediate: XesIntermediate) -> Result<Self> {
+        let key_str = intermediate.pop("key")?;
+        let val_str = intermediate.pop("value");
 
         let value = match intermediate.type_name.as_str() {
-            "string" => AttributeValue::String(val_str?.clone()),
+            "string" => AttributeValue::String(val_str?),
             "date" => AttributeValue::Date(DateTime::parse_from_rfc3339(val_str?.as_str())?),
             "int" => AttributeValue::Int(val_str?.parse::<i64>()?),
             "float" => AttributeValue::Float(val_str?.parse::<f64>()?),
             "boolean" => AttributeValue::Boolean(parse_bool(&val_str?.as_str())?),
-            "id" => AttributeValue::Id(val_str?.clone()),
+            "id" => AttributeValue::Id(val_str?),
             "list" => {
                 let mut attributes: Vec<Attribute> = Vec::new();
 
@@ -199,11 +199,11 @@ impl TryFrom<XesIntermediate> for XesValue {
 impl TryFrom<XesIntermediate> for ExtensionDecl {
     type Error = Error;
 
-    fn try_from(intermediate: XesIntermediate) -> Result<Self> {
+    fn try_from(mut intermediate: XesIntermediate) -> Result<Self> {
         Ok(ExtensionDecl {
-            name: intermediate.get_attr("name")?.clone(),
-            prefix: intermediate.get_attr("prefix")?.clone(),
-            uri: intermediate.get_attr("uri")?.clone(),
+            name: intermediate.pop("name")?,
+            prefix: intermediate.pop("prefix")?,
+            uri: intermediate.pop("uri")?,
         })
     }
 }
@@ -265,11 +265,11 @@ impl Global {
 impl TryFrom<XesIntermediate> for ClassifierDecl {
     type Error = Error;
 
-    fn try_from(intermediate: XesIntermediate) -> Result<Self> {
+    fn try_from(mut intermediate: XesIntermediate) -> Result<Self> {
         Ok(ClassifierDecl {
-            name: intermediate.get_attr("name")?.clone(),
+            name: intermediate.pop("name")?,
             scope: Scope::try_from(intermediate.attributes.get("scope").cloned())?,
-            keys: intermediate.get_attr("keys")?.clone(),
+            keys: intermediate.pop("keys")?,
         })
     }
 }
@@ -411,9 +411,9 @@ impl TryFrom<XesIntermediate> for Log {
 
         for element in intermediate.elements {
             match element {
-                XesElement::Extension(extension) => meta.extensions.push(extension),
+                XesElement::ExtensionDecl(extension) => meta.extensions.push(extension),
                 XesElement::Global(global) => meta.globals.push(global),
-                XesElement::Classifier(classifier) => meta.classifiers.push(classifier),
+                XesElement::ClassifierDecl(classifier) => meta.classifiers.push(classifier),
                 XesElement::Attribute(attribute) => {
                     meta.attributes.insert(attribute.key, attribute.value);
                 }
@@ -440,11 +440,11 @@ impl TryFrom<XesIntermediate> for XesElement {
                 Ok(XesElement::Attribute(Attribute::try_from(intermediate)?))
             }
             "values" => Ok(XesElement::Value(XesValue::try_from(intermediate)?)),
-            "extension" => Ok(XesElement::Extension(ExtensionDecl::try_from(
+            "extension" => Ok(XesElement::ExtensionDecl(ExtensionDecl::try_from(
                 intermediate,
             )?)),
             "global" => Ok(XesElement::Global(Global::try_from(intermediate)?)),
-            "classifier" => Ok(XesElement::Classifier(ClassifierDecl::try_from(
+            "classifier" => Ok(XesElement::ClassifierDecl(ClassifierDecl::try_from(
                 intermediate,
             )?)),
             "event" => Ok(XesElement::Event(Event::try_from(intermediate)?)),
@@ -484,14 +484,13 @@ impl XesIntermediate {
         })
     }
 
-    fn get_attr(&self, key: &str) -> Result<&String> {
-        match self.attributes.get(key) {
-            Some(value) => Ok(value),
-            None => {
-                let msg = format!("missing {:?} attribute in {:?}", key, self.type_name);
-                Err(Error::KeyError(msg))
-            }
-        }
+    fn pop(&mut self, key: &str) -> Result<String> {
+        Ok(self.attributes.remove(key).ok_or_else(|| {
+            Error::KeyError(format!(
+                "missing {:?} attribute in {:?}",
+                key, self.type_name
+            ))
+        })?)
     }
 
     fn add_element(&mut self, element: XesElement) {
@@ -534,7 +533,7 @@ impl<R: io::BufRead> XesReader<R> {
 
         if self.stack.len() <= 1 {
             match element {
-                XesElement::Extension(extension) => {
+                XesElement::ExtensionDecl(extension) => {
                     if let Some(meta) = &mut self.meta {
                         meta.extensions.push(extension);
                     } else {
@@ -548,7 +547,7 @@ impl<R: io::BufRead> XesReader<R> {
                         return Err(Error::StateError(format!("unexpected: {:?}", global)));
                     }
                 }
-                XesElement::Classifier(classifier) => {
+                XesElement::ClassifierDecl(classifier) => {
                     if let Some(meta) = &mut self.meta {
                         meta.classifiers.push(classifier)
                     } else {
@@ -734,25 +733,6 @@ impl<W: io::Write> XesWriter<W> {
         self.writer.into_inner()
     }
 }
-
-/// Validates an extensible event stream
-///
-/// **Element level validation**
-/// * string types
-///     * `Attribute.key` (`xs:Name`)
-///     * `Extension.name` (`xs:NCName`)
-///     * `Extension.prefix` (`xs:NCName`)
-///     * `Extension.uri` (`xs:anyURI`)
-///     * `Global.scope` (`xs:NCName`)
-///     * `Classifier.name` (`xs:NCName`)
-///     * `Classifier.scope` (`xs:NCName`)
-///     * `Classifier.keys` (`xs:token`)
-///
-/// **Semantic validation**
-/// * nested attributes
-/// * globals
-///
-pub struct XesValidator {/* TODO to be implemented */}
 
 #[cfg(test)]
 mod tests {

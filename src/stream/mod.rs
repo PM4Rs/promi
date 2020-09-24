@@ -26,7 +26,7 @@ pub mod xml_util;
 
 // standard library
 use std::any::Any;
-use std::collections::BTreeMap; // TODO consider going back to HashMaps
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 

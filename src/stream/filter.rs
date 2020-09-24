@@ -124,7 +124,7 @@ pub mod tests {
     use crate::stream::Element;
     use crate::stream::StreamSink;
 
-    pub type TokenMapper = Box<dyn Fn(&dyn Attributes) -> Result<String>>;
+    pub type TokenMapper = Box<dyn Fn(&dyn Attributes) -> Result<String> + Send>;
 
     pub struct Sequencer {
         token_mapper: TokenMapper,

@@ -478,7 +478,7 @@ pub type ResOpt = Result<Option<Element>>;
 /// Yields one stream element at a time. Usually, it either acts as a factory or forwards another
 /// stream. Errors are propagated to the caller.
 ///
-pub trait Stream {
+pub trait Stream: Send {
     /// Returns the next stream element
     fn next(&mut self) -> ResOpt;
 }
@@ -501,7 +501,7 @@ pub trait WrappingStream<T: Stream>: Stream {
 /// stream is converted into different representation. If that's not intended, the `consume`
 /// function is a good shortcut. It simply discards the stream's contents.
 ///
-pub trait StreamSink {
+pub trait StreamSink: Send {
     /// Optional callback  that is invoked when the stream is opened
     fn on_open(&mut self) -> Result<()> {
         Ok(())

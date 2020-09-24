@@ -595,7 +595,7 @@ impl<R: io::BufRead> XesReader<R> {
     }
 }
 
-impl<T: io::BufRead> Stream for XesReader<T> {
+impl<T: io::BufRead + Send> Stream for XesReader<T> {
     fn next(&mut self) -> ResOpt {
         // At the transition of the meta data fields to actual stream data the first trace/event
         // will be cached and emitted in the next iteration. This is supposed to happen once per
@@ -666,7 +666,7 @@ impl<W: io::Write> XesWriter<W> {
     }
 }
 
-impl<W: io::Write> StreamSink for XesWriter<W> {
+impl<W: io::Write + Send> StreamSink for XesWriter<W> {
     fn on_open(&mut self) -> Result<()> {
         // XML declaration
         let declaration = QxBytesDecl::new(b"1.0", Some(b"UTF-8"), None);

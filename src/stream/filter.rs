@@ -12,7 +12,7 @@ use crate::stream::{
 };
 
 /// A condition aka filter function maps any item to a boolean value
-pub type Condition<'a, T> = Box<dyn Fn(&T) -> Result<bool> + 'a>;
+pub type Condition<'a, T> = Box<dyn Fn(&T) -> Result<bool> + 'a + Send>;
 
 /// A vector of vectors of conditions
 pub type CNF<'a, T> = Vec<Vec<Condition<'a, T>>>;

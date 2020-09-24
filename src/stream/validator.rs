@@ -16,7 +16,7 @@ use crate::stream::observer::Handler;
 use crate::stream::{Attributes, Event, Meta, Scope, Trace};
 use crate::{Error, Result};
 
-pub type ValidatorFn = Box<dyn Fn(Box<&dyn Attributes>) -> Result<()>>;
+pub type ValidatorFn = Box<dyn Fn(Box<&dyn Attributes>) -> Result<()> + Send>;
 
 /// Container for validator functions
 pub struct Validator {

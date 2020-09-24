@@ -15,7 +15,7 @@ use crate::stream::{Element, ElementType, Event, Meta, ResOpt, Stream, Trace, Wr
 /// whether or not it's part of a trace. Payload callbacks may also act as a filter and not return
 /// the element.
 ///
-pub trait Handler {
+pub trait Handler: Send {
     /// Handle stream meta data
     ///
     /// Invoked once per stream when transition from meta data to payload is passed.

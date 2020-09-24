@@ -7,7 +7,7 @@ use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
 // local
-use crate::stream::{Element, ResOpt, Stream, StreamSink, WrappingStream};
+use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
 /// Train-Test split
 ///
@@ -45,6 +45,14 @@ impl<T: Stream, S: StreamSink> Split<T, S> {
 }
 
 impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        Some(&self.stream)
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        Some(&mut self.stream)
+    }
+
     fn next(&mut self) -> ResOpt {
         loop {
             match self.stream.next() {
@@ -75,23 +83,15 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
     }
 }
 
-impl<T: Stream, S: StreamSink> WrappingStream<T> for Split<T, S> {
-    fn inner(&self) -> &T {
-        &self.stream
-    }
-
-    fn into_inner(self) -> T {
-        self.stream
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::dev_util::{assert_is_close, load_example};
     use crate::stream::buffer::Buffer;
-    use crate::stream::stats::Counter;
-    use crate::stream::{consume, Log};
+    use crate::stream::channel::stream_channel;
+    use crate::stream::observer::Observer;
+    use crate::stream::stats::{Statistics, StatsHandler};
+    use crate::stream::{consume, Artifact, Log};
 
     #[test]
     fn test_split() {
@@ -119,20 +119,25 @@ pub mod tests {
             let mut train_event_ratio: f64 = 0.0;
 
             for seed in 0..repetitions {
-                let test_buffer = Buffer::default();
-                let split = Split::new(buffer.clone(), test_buffer, *ratio, Some(seed));
-                let mut train_counter = Counter::new(split);
+                let (test_sender, test_receiver) = stream_channel(None);
 
-                consume(&mut train_counter).unwrap();
+                let split = Split::new(buffer.clone(), test_sender, *ratio, Some(seed));
+                let mut train_counter = Observer::from((split, StatsHandler::default()));
 
-                let [_, train_trace_ct, train_event_ct] = train_counter.counts();
+                let artifacts = consume(&mut train_counter).unwrap();
 
-                let (_, test_buffer) = train_counter.into_inner().release();
+                let [_, train_trace_ct, train_event_ct] =
+                    Artifact::find::<Statistics>(artifacts.as_slice())
+                        .unwrap()
+                        .counts();
 
-                let mut test_counter = Counter::new(test_buffer);
-                consume(&mut test_counter).unwrap();
+                let mut test_counter = Observer::from((test_receiver, StatsHandler::default()));
+                let artifacts = consume(&mut test_counter).unwrap();
 
-                let [_, test_trace_ct, test_event_ct] = test_counter.counts();
+                let [_, test_trace_ct, test_event_ct] =
+                    Artifact::find::<Statistics>(artifacts.as_slice())
+                        .unwrap()
+                        .counts();
 
                 if train_event_ct + test_event_ct > 0 {
                     train_event_ratio +=

@@ -1,9 +1,7 @@
+use promi::stream::stats::Statistics;
 use promi::stream::validator::Validator;
 use promi::stream::{
-    buffer, consume,
-    observer::Observer,
-    stats::{Counter, StreamStats},
-    xes, Log, StreamSink,
+    buffer, consume, observer::Observer, stats::StatsHandler, xes, Artifact, Log, StreamSink,
 };
 use std::fs::File;
 use std::io::{stdout, BufReader};
@@ -64,25 +62,23 @@ fn example_2() {
 
     print!("read {:?} to log and count elements: ", &path);
     let mut log = Log::default();
-    let reader = xes::XesReader::from(file);
-    let mut counter = Counter::new(reader);
-    log.consume(&mut counter).unwrap();
-    println!("{:?}", &log);
+    let mut reader = xes::XesReader::from(file);
+    log.consume(&mut reader).unwrap();
 
     print!("convert log to stream buffer: ");
     let buffer: buffer::Buffer = log.into();
-    println!("{:?}", &buffer);
 
     println!("stream buffer via observer to stdout:");
     let mut observer = Observer::new(buffer);
-    observer.register(StreamStats::default());
+    observer.register(StatsHandler::default());
 
     let mut writer = xes::XesWriter::new(stdout(), None, None);
-    writer.consume(&mut observer).unwrap();
+    let artifacts = writer.consume(&mut observer).unwrap();
 
-    println!("\n");
-    println!("{}", counter);
-    println!("{}", observer.release().unwrap());
+    println!(
+        "\n\n{}",
+        Artifact::find::<Statistics>(artifacts.as_slice()).unwrap()
+    )
 }
 
 /// Store XES file stream in log, convert log to stream buffer and stream it to stdout

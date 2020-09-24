@@ -6,11 +6,12 @@
 //! ```
 //! use std::io;
 //! use promi::stream::{
+//!     Artifact,
 //!     consume,
 //!     observer::Observer,
-//!     stats::{Counter, StreamStats},
+//!     stats::{StatsHandler, Statistics},
+//!     Stream,
 //!     StreamSink,
-//!     WrappingStream,
 //!     xes::XesReader
 //! };
 //!
@@ -28,139 +29,100 @@
 //!            </log>"#;
 //!
 //! let reader = XesReader::from(io::BufReader::new(s.as_bytes()));
-//! let counter = Counter::new(reader);
-//! let mut observer = Observer::new(counter);
+//! let mut stats = Observer::from((reader, StatsHandler::default()));
 //!
-//! observer.register(StreamStats::default());
+//! let artifacts = consume(&mut stats).unwrap();
 //!
-//! consume(&mut observer);
-//!
-//! let stats = observer.release().unwrap();
-//! let counter = observer.into_inner();
-//!
-//! assert_eq!([1, 1, 0], counter.counts());
-//! assert_eq!([1, 2], stats.counts())
+//! assert_eq!([1, 2, 2], Artifact::find::<Statistics>(artifacts.as_slice()).unwrap().counts())
 //! ```
 //!
 
 // standard library
+use std::any::Any;
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::mem;
 
 // third party
 
 // local
 use crate::error::Result;
-use crate::stream::{observer::Handler, Element, Event, ResOpt, Stream, Trace, WrappingStream};
+use crate::stream::{observer::Handler, Artifact, AsAny, Event, Trace};
 
-/// Count element types in an extensible event stream
-#[derive(Debug)]
-pub struct Counter<T: Stream> {
-    stream: T,
-    pub meta: usize,
-    pub traces: usize,
-    pub events: usize,
-}
-
-impl<T: Stream> Counter<T> {
-    /// New counter from stream
-    pub fn new(stream: T) -> Self {
-        Counter {
-            stream,
-            meta: 0,
-            traces: 0,
-            events: 0,
-        }
-    }
-
-    /// Counts as array
-    pub fn counts(&self) -> [usize; 3] {
-        [self.meta, self.traces, self.events]
-    }
-}
-
-impl<T: Stream> Stream for Counter<T> {
-    fn next(&mut self) -> ResOpt {
-        let element = self.stream.next()?;
-
-        match &element {
-            Some(Element::Meta(_)) => self.meta += 1,
-            Some(Element::Trace(_)) => self.traces += 1,
-            Some(Element::Event(_)) => self.events += 1,
-            None => (),
-        }
-
-        Ok(element)
-    }
-}
-
-impl<T: Stream> WrappingStream<T> for Counter<T> {
-    fn inner(&self) -> &T {
-        &self.stream
-    }
-
-    fn into_inner(self) -> T {
-        self.stream
-    }
-}
-
-impl<T: Stream> fmt::Display for Counter<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Counts")?;
-        writeln!(f, "   meta:   {}", self.meta)?;
-        writeln!(f, "   traces: {}", self.traces)?;
-        writeln!(f, "   events: {}", self.events)?;
-        Ok(())
-    }
-}
-
-/// Event and trace statistics
-///
-/// Provides deeper inspection of an extensible event stream by looking into traces and providing
-/// aggregated statistics.
-///
-#[derive(Debug)]
-pub struct StreamStats {
+/// Container for statistical data of an event stream
+#[derive(Debug, Clone)]
+pub struct Statistics {
     ct_trace: Vec<usize>,
     ct_event: usize,
 }
 
-impl Default for StreamStats {
+impl Statistics {
+    pub fn counts(&self) -> [usize; 3] {
+        [
+            self.ct_trace.len(),
+            self.ct_trace.iter().sum::<usize>(),
+            self.ct_event,
+        ]
+    }
+}
+
+impl Default for Statistics {
     fn default() -> Self {
-        Self {
+        Statistics {
             ct_trace: Vec::new(),
             ct_event: 0,
         }
     }
 }
 
-impl Handler for StreamStats {
-    fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
-        self.ct_trace.push(trace.events.len());
-        Ok(Some(trace))
+impl AsAny for Statistics {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
-        self.ct_event += 1;
-        Ok(Some(event))
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
-impl StreamStats {
-    /// Counts as array
-    pub fn counts(&self) -> [usize; 2] {
-        [self.ct_trace.len(), self.ct_event]
-    }
-}
-
-impl fmt::Display for StreamStats {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for Statistics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sa_events = self.ct_event - self.ct_trace.iter().sum::<usize>();
         writeln!(f, "StreamStats")?;
         writeln!(f, "   traces:              {:?}", self.ct_trace.len())?;
         writeln!(f, "   events:              {:?}", self.ct_event)?;
         writeln!(f, "   events (standalone): {:?}", sa_events)?;
         Ok(())
+    }
+}
+
+/// Generate statistics from event stream
+#[derive(Debug)]
+pub struct StatsHandler {
+    pub statistics: Statistics,
+}
+
+impl Default for StatsHandler {
+    fn default() -> Self {
+        Self {
+            statistics: Statistics::default(),
+        }
+    }
+}
+
+impl Handler for StatsHandler {
+    fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
+        self.statistics.ct_trace.push(trace.events.len());
+        Ok(Some(trace))
+    }
+
+    fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
+        self.statistics.ct_event += 1;
+        Ok(Some(event))
+    }
+
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        Ok(vec![Artifact::from(mem::take(&mut self.statistics))])
     }
 }
 
@@ -171,47 +133,29 @@ mod tests {
     use crate::stream::{consume, observer::Observer};
 
     #[test]
-    fn test_counter() {
-        let param = [
-            ("book", "L1.xes", [1, 6, 0]),
-            ("book", "L2.xes", [1, 13, 0]),
-            ("book", "L3.xes", [1, 4, 0]),
-            ("book", "L4.xes", [1, 147, 0]),
-            ("book", "L5.xes", [1, 14, 0]),
-            ("correct", "log_correct_attributes.xes", [1, 0, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 1, 2]),
-        ];
-
-        for (d, f, e) in param.iter() {
-            let mut stats = Counter::new(load_example(&[d, f]));
-
-            consume(&mut stats).unwrap();
-
-            assert_eq!(stats.counts(), *e);
-        }
-    }
-
-    #[test]
     fn test_stream_stats() {
         let param = [
-            ("book", "L1.xes", [6, 23]),
-            ("book", "L2.xes", [13, 80]),
-            ("book", "L3.xes", [4, 39]),
-            ("book", "L4.xes", [147, 441]),
-            ("book", "L5.xes", [14, 92]),
-            ("correct", "log_correct_attributes.xes", [0, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 4]),
+            ("book", "L1.xes", [6, 23, 23]),
+            ("book", "L2.xes", [13, 80, 80]),
+            ("book", "L3.xes", [4, 39, 39]),
+            ("book", "L4.xes", [147, 441, 441]),
+            ("book", "L5.xes", [14, 92, 92]),
+            ("correct", "log_correct_attributes.xes", [0, 0, 0]),
+            ("correct", "event_correct_attributes.xes", [1, 2, 4]),
         ];
 
         for (d, f, e) in param.iter() {
             let buffer = load_example(&[d, f]);
             let mut observer = Observer::new(buffer);
-            observer.register(StreamStats::default());
+            observer.register(StatsHandler::default());
 
-            consume(&mut observer).unwrap();
-
-            let stats = observer.release().unwrap();
-            assert_eq!(stats.counts(), *e);
+            let artifacts = consume(&mut observer).unwrap();
+            assert_eq!(
+                Artifact::find::<Statistics>(artifacts.as_slice())
+                    .unwrap()
+                    .counts(),
+                *e
+            );
         }
     }
 }

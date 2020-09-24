@@ -25,6 +25,7 @@ pub mod xes;
 pub mod xml_util;
 
 // standard library
+use std::any::Any;
 use std::collections::BTreeMap; // TODO consider going back to HashMaps
 use std::convert::TryFrom;
 use std::fmt::Debug;
@@ -473,26 +474,86 @@ impl Attributes for Element {
 /// Container for stream elements that can express the empty element as well as errors
 pub type ResOpt = Result<Option<Element>>;
 
+/// Allows for down casting to an arbitrary type
+pub trait AsAny: Send + Debug {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+/// Container for arbitrary artifacts a stream processing pipeline creates
+#[derive(Debug)]
+pub struct Artifact {
+    inner: Box<dyn AsAny>,
+}
+
+impl Artifact {
+    /// Tries to down cast the artifact to the given type
+    pub fn cast_ref<T: 'static>(&self) -> Option<&T> {
+        self.inner.as_any().downcast_ref::<T>()
+    }
+
+    /// Tries to down cast the artifact mutably to the given type
+    pub fn cast_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.inner.as_any_mut().downcast_mut::<T>()
+    }
+
+    /// Returns the first artifact that can be down casted to the given type
+    pub fn find<T: 'static>(artifacts: &[Artifact]) -> Option<&T> {
+        for artifact in artifacts {
+            if let Some(value) = artifact.cast_ref::<T>() {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    /// Returns all artifacts that can be down casted to the given type
+    pub fn find_all<T: 'static>(artifacts: &[Artifact]) -> Box<dyn Iterator<Item = &T> + '_> {
+        Box::new(artifacts.iter().filter_map(|a| a.cast_ref::<T>()))
+    }
+}
+
+impl<T: AsAny + 'static> From<T> for Artifact {
+    fn from(inner: T) -> Self {
+        Self {
+            inner: Box::new(inner),
+        }
+    }
+}
+
 /// Extensible event stream
 ///
 /// Yields one stream element at a time. Usually, it either acts as a factory or forwards another
 /// stream. Errors are propagated to the caller.
 ///
 pub trait Stream: Send {
-    /// Returns the next stream element
+    /// Get a reference to the inner stream if there is one
+    fn get_inner(&self) -> Option<&dyn Stream>;
+
+    /// Get a mutable reference to the inner stream if there is one
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream>;
+
+    /// Return the next stream element
     fn next(&mut self) -> ResOpt;
-}
 
-/// Extensible event stream that wraps another stream instance
-///
-/// Usually, one wants to chain stream instances. TODO finish docs
-///
-pub trait WrappingStream<T: Stream>: Stream {
-    /// Get a reference to inner stream
-    fn inner(&self) -> &T;
+    /// Release artifacts of stream
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        Ok(vec![])
+    }
 
-    /// Release inner stream
-    fn into_inner(self) -> T;
+    /// Emit artifacts of stream
+    ///
+    /// A stream may aggregate data over time that is released by calling this method. Usually,
+    /// this happens at the end of the stream.
+    ///
+    fn emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        let mut artifacts = Vec::new();
+        if let Some(inner) = self.get_inner_mut() {
+            artifacts.extend(Stream::emit_artifacts(inner)?);
+        }
+        artifacts.extend(Stream::release_artifacts(self)?);
+        Ok(artifacts)
+    }
 }
 
 /// Stream endpoint
@@ -520,10 +581,21 @@ pub trait StreamSink: Send {
         Ok(())
     }
 
+    /// Release artifacts of stream sink
+    ///
+    /// A stream sink may aggregate data over time that is released by calling this method. Usually,
+    /// this happens at the end of the stream.
+    ///
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        Ok(vec![])
+    }
+
     /// Invokes a stream as long as it provides new elements.
-    fn consume(&mut self, stream: &mut dyn Stream) -> Result<()> {
+    fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Artifact>> {
+        // call pre-execution hook
         self.on_open()?;
 
+        // consume stream
         loop {
             match stream.next() {
                 Ok(Some(element)) => self.on_element(element)?,
@@ -535,15 +607,35 @@ pub trait StreamSink: Send {
             };
         }
 
+        // call post-execution hook
         self.on_close()?;
+
+        // collect artifacts
+        Ok(Stream::emit_artifacts(stream)?
+            .into_iter()
+            .chain(StreamSink::release_artifacts(self)?.into_iter())
+            .collect())
+    }
+}
+
+/// A dummy sink that does nothing but consuming the given stream
+pub struct Void;
+
+impl Default for Void {
+    fn default() -> Self {
+        Void { }
+    }
+}
+
+impl StreamSink for Void {
+    fn on_element(&mut self, _: Element) -> Result<()> {
         Ok(())
     }
 }
 
-/// Stream sink that discards consumed contents
-pub fn consume<T: Stream>(stream: &mut T) -> Result<()> {
-    while stream.next()?.is_some() { /* discard stream contents */ }
-    Ok(())
+/// Creates a dummy sink and consumes the given stream
+pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Artifact>> {
+    Void::default().consume(stream)
 }
 
 #[cfg(test)]

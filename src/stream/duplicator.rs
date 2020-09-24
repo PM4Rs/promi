@@ -5,7 +5,7 @@
 // third party
 
 // local
-use crate::stream::{ResOpt, Stream, StreamSink, WrappingStream};
+use crate::stream::{ResOpt, Stream, StreamSink};
 
 /// Creates a copy of an extensible event stream on the fly
 ///
@@ -35,6 +35,14 @@ impl<T: Stream, S: StreamSink> Duplicator<T, S> {
 }
 
 impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        Some(&self.stream)
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        Some(&mut self.stream)
+    }
+
     fn next(&mut self) -> ResOpt {
         if !self.open {
             self.open = true;
@@ -55,16 +63,6 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
                 Err(error)
             }
         }
-    }
-}
-
-impl<T: Stream, S: StreamSink> WrappingStream<T> for Duplicator<T, S> {
-    fn inner(&self) -> &T {
-        &self.stream
-    }
-
-    fn into_inner(self) -> T {
-        self.stream
     }
 }
 

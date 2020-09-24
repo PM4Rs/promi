@@ -31,6 +31,14 @@ impl Default for Buffer {
 }
 
 impl Stream for Buffer {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        None
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        None
+    }
+
     fn next(&mut self) -> ResOpt {
         match self.buffer.pop_front() {
             Some(element) => element,

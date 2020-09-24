@@ -56,6 +56,14 @@ pub struct StreamReceiver {
 }
 
 impl Stream for StreamReceiver {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        None
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        None
+    }
+
     fn next(&mut self) -> ResOpt {
         self.receiver.recv()?
     }
@@ -97,7 +105,9 @@ pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
 mod tests {
     use super::*;
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::{consume, duplicator::Duplicator, stats::Counter, xes::XesReader};
+    use crate::stream::observer::Observer;
+    use crate::stream::stats::{Statistics, StatsHandler};
+    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
     use std::path::PathBuf;
     use std::thread;
 
@@ -132,20 +142,47 @@ mod tests {
         let d_t1 = Duplicator::new(reader, s_t0_t1);
         let d_t2 = Duplicator::new(d_t1, s_t0_t2);
 
-        let mut c_t0 = Counter::new(d_t2);
-        let mut c_t1 = Counter::new(r_t1_t0);
-        let mut c_t2 = Counter::new(r_t2_t0);
+        let mut c_t0 = Observer::from((d_t2, StatsHandler::default()));
+        let mut c_t1 = Observer::from((r_t1_t0, StatsHandler::default()));
+        let mut c_t2 = Observer::from((r_t2_t0, StatsHandler::default()));
 
         // execute pipeline (order is important!)
-        assert_eq!(consume(&mut c_t0).is_err(), expect_error);
-        assert_eq!(consume(&mut c_t1).is_err(), expect_error);
-        assert_eq!(consume(&mut c_t2).is_err(), expect_error);
+        let mut results = Vec::new();
+        match consume(&mut c_t0) {
+            Ok(artifacts) => results.push(
+                Artifact::find::<Statistics>(artifacts.as_slice())
+                    .unwrap()
+                    .counts(),
+            ),
+            _ => assert!(expect_error),
+        }
+        match consume(&mut c_t1) {
+            Ok(artifacts) => results.push(
+                Artifact::find::<Statistics>(artifacts.as_slice())
+                    .unwrap()
+                    .counts(),
+            ),
+            _ => assert!(expect_error),
+        }
+        match consume(&mut c_t2) {
+            Ok(artifacts) => results.push(
+                Artifact::find::<Statistics>(artifacts.as_slice())
+                    .unwrap()
+                    .counts(),
+            ),
+            _ => assert!(expect_error),
+        }
 
+        // wait for threads to complete
         t_1.join().unwrap();
         t_2.join().unwrap();
 
-        assert_eq!(c_t0.counts(), c_t1.counts());
-        assert_eq!(c_t0.counts(), c_t2.counts());
+        for w in results.as_slice().windows(2) {
+            match w {
+                [c1, c2] => assert_eq!(c1, c2),
+                _ => unimplemented!(),
+            }
+        }
     }
 
     #[test]

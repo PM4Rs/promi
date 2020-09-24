@@ -6,7 +6,7 @@
 
 // local
 use crate::error::{Error, Result};
-use crate::stream::{Element, ElementType, Event, Meta, ResOpt, Stream, Trace, WrappingStream};
+use crate::stream::{Artifact, Element, ElementType, Event, Meta, ResOpt, Stream, Trace};
 
 /// Gets registered with an observer while providing callbacks
 ///
@@ -39,6 +39,15 @@ pub trait Handler: Send {
     ///
     fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
         Ok(Some(event))
+    }
+
+    /// Release artifacts of handler
+    ///
+    /// A handler may aggregate data over an event stream that is released by calling this method.
+    /// Usually, this happens at the end of a stream.
+    ///
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        Ok(vec![])
     }
 }
 
@@ -178,6 +187,14 @@ impl<I: Stream, H: Handler> From<(I, H)> for Observer<I, H> {
 }
 
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        Some(&self.stream)
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        Some(&mut self.stream)
+    }
+
     fn next(&mut self) -> ResOpt {
         while let Some(element) = self.stream.next()? {
             if let Some(element) = self.on_element(element)? {
@@ -187,15 +204,15 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
 
         Ok(None)
     }
-}
 
-impl<I: Stream, H: Handler> WrappingStream<I> for Observer<I, H> {
-    fn inner(&self) -> &I {
-        &self.stream
-    }
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        let mut artifacts = Vec::new();
 
-    fn into_inner(self) -> I {
-        self.stream
+        for handler in self.handler.iter_mut() {
+            artifacts.extend(handler.release_artifacts()?);
+        }
+
+        Ok(artifacts)
     }
 }
 

@@ -596,6 +596,14 @@ impl<R: io::BufRead> XesReader<R> {
 }
 
 impl<T: io::BufRead + Send> Stream for XesReader<T> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        None
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        None
+    }
+
     fn next(&mut self) -> ResOpt {
         // At the transition of the meta data fields to actual stream data the first trace/event
         // will be cached and emitted in the next iteration. This is supposed to happen once per

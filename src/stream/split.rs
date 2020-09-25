@@ -127,7 +127,7 @@ pub mod tests {
                 let artifacts = consume(&mut train_counter).unwrap();
 
                 let [_, train_trace_ct, train_event_ct] =
-                    Artifact::find::<Statistics>(artifacts.as_slice())
+                    Artifact::find::<Statistics>(&artifacts)
                         .unwrap()
                         .counts();
 

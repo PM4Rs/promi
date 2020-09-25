@@ -77,7 +77,7 @@ fn example_2() {
 
     println!(
         "\n\n{}",
-        Artifact::find::<Statistics>(artifacts.as_slice()).unwrap()
+        Artifact::find::<Statistics>(&artifacts).unwrap()
     )
 }
 

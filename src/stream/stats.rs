@@ -33,7 +33,7 @@
 //!
 //! let artifacts = consume(&mut stats).unwrap();
 //!
-//! assert_eq!([1, 2, 2], Artifact::find::<Statistics>(artifacts.as_slice()).unwrap().counts())
+//! assert_eq!([1, 2, 2], Artifact::find::<Statistics>(&artifacts).unwrap().counts())
 //! ```
 //!
 

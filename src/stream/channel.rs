@@ -150,7 +150,7 @@ mod tests {
         let mut results = Vec::new();
         match consume(&mut c_t0) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(artifacts.as_slice())
+                Artifact::find::<Statistics>(&artifacts)
                     .unwrap()
                     .counts(),
             ),
@@ -166,7 +166,7 @@ mod tests {
         }
         match consume(&mut c_t2) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(artifacts.as_slice())
+                Artifact::find::<Statistics>(&artifacts)
                     .unwrap()
                     .counts(),
             ),

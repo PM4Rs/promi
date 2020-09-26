@@ -92,7 +92,6 @@ mod tests {
     use super::*;
     use crate::dev_util::load_example;
     use crate::stream::consume;
-    use crate::stream::observer::Observer;
 
     #[test]
     fn test_globals_validation() {

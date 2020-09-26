@@ -105,7 +105,7 @@ pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
 mod tests {
     use super::*;
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::observer::{Handler, Observer};
+    use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
     use std::path::PathBuf;

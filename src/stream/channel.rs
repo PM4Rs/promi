@@ -105,8 +105,8 @@ pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
 mod tests {
     use super::*;
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::observer::Observer;
-    use crate::stream::stats::{Statistics, StatsHandler};
+    use crate::stream::observer::{Handler, Observer};
+    use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
     use std::path::PathBuf;
     use std::thread;
@@ -142,18 +142,16 @@ mod tests {
         let d_t1 = Duplicator::new(reader, s_t0_t1);
         let d_t2 = Duplicator::new(d_t1, s_t0_t2);
 
-        let mut c_t0 = Observer::from((d_t2, StatsHandler::default()));
-        let mut c_t1 = Observer::from((r_t1_t0, StatsHandler::default()));
-        let mut c_t2 = Observer::from((r_t2_t0, StatsHandler::default()));
+        let mut c_t0 = StatsCollector::default().into_observer(d_t2);
+        let mut c_t1 = StatsCollector::default().into_observer(r_t1_t0);
+        let mut c_t2 = StatsCollector::default().into_observer(r_t2_t0);
 
         // execute pipeline (order is important!)
         let mut results = Vec::new();
         match consume(&mut c_t0) {
-            Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(&artifacts)
-                    .unwrap()
-                    .counts(),
-            ),
+            Ok(artifacts) => {
+                results.push(Artifact::find::<Statistics>(&artifacts).unwrap().counts())
+            }
             _ => assert!(expect_error),
         }
         match consume(&mut c_t1) {
@@ -165,11 +163,9 @@ mod tests {
             _ => assert!(expect_error),
         }
         match consume(&mut c_t2) {
-            Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(&artifacts)
-                    .unwrap()
-                    .counts(),
-            ),
+            Ok(artifacts) => {
+                results.push(Artifact::find::<Statistics>(&artifacts).unwrap().counts())
+            }
             _ => assert!(expect_error),
         }
 

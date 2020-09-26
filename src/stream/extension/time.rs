@@ -192,7 +192,7 @@ mod tests {
     use super::*;
     use crate::dev_util::load_example;
     use crate::stream::filter::tests::test_filter;
-    use crate::stream::observer::Observer;
+    use crate::stream::observer::{Handler, Observer};
     use crate::stream::validator::Validator;
     use crate::stream::{consume, Element, Stream};
 
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn test_validation() {
         let buffer = load_example(&["non_validating", "event_incorrect_order.xes"]);
-        let mut validator = Observer::from((buffer, Validator::default()));
+        let mut validator = Validator::default().into_observer(buffer);
 
         if let Err(Error::ValidationError(msg)) = consume(&mut validator) {
             assert!(msg.contains(r#"at least two child elements of "Trace" appear not to be in chronological order (Timestamp(2000-01-01T00:00:00+00:00), Timestamp(1999-01-01T00:00:00+00:00))"#))

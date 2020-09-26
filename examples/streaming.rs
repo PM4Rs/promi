@@ -1,7 +1,8 @@
+use promi::stream::observer::Handler;
 use promi::stream::stats::Statistics;
 use promi::stream::validator::Validator;
 use promi::stream::{
-    buffer, consume, observer::Observer, stats::StatsHandler, xes, Artifact, Log, StreamSink,
+    buffer, consume, observer::Observer, stats::StatsCollector, xes, Artifact, Log, StreamSink,
 };
 use std::fs::File;
 use std::io::{stdout, BufReader};
@@ -70,15 +71,12 @@ fn example_2() {
 
     println!("stream buffer via observer to stdout:");
     let mut observer = Observer::new(buffer);
-    observer.register(StatsHandler::default());
+    observer.register(StatsCollector::default());
 
     let mut writer = xes::XesWriter::new(stdout(), None, None);
     let artifacts = writer.consume(&mut observer).unwrap();
 
-    println!(
-        "\n\n{}",
-        Artifact::find::<Statistics>(&artifacts).unwrap()
-    )
+    println!("\n\n{}", Artifact::find::<Statistics>(&artifacts).unwrap())
 }
 
 /// Store XES file stream in log, convert log to stream buffer and stream it to stdout
@@ -90,7 +88,7 @@ fn example_3() {
     let file = BufReader::new(File::open(&path).unwrap());
 
     let reader = xes::XesReader::from(file);
-    let mut validator = Observer::from((reader, Validator::default()));
+    let mut validator = Validator::default().into_observer(reader);
 
     consume(&mut validator).unwrap();
 }

@@ -49,6 +49,14 @@ pub trait Handler: Send {
     fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
         Ok(vec![])
     }
+
+    /// Wrap the handler into an observer
+    fn into_observer<T: Stream>(self, stream: T) -> Observer<T, Self>
+    where
+        Self: Sized,
+    {
+        Observer::from((stream, self))
+    }
 }
 
 /// Observes a stream and revokes registered callbacks

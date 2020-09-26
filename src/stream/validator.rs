@@ -97,11 +97,11 @@ mod tests {
     #[test]
     fn test_globals_validation() {
         let buffer = load_example(&["test", "extension_full.xes"]);
-        let mut validator = Observer::from((buffer, Validator::default()));
+        let mut validator = Validator::default().into_observer(buffer);
         consume(&mut validator).expect("validation is expected to succeed");
 
         let buffer = load_example(&["non_validating", "globals_violation_type.xes"]);
-        let mut validator = Observer::from((buffer, Validator::default()));
+        let mut validator = Validator::default().into_observer(buffer);
 
         if let Err(Error::ValidationError(msg)) = consume(&mut validator) {
             assert!(msg.contains(r#"Couldn't find an attribute with key ""lifecycle:transition"""#))
@@ -110,7 +110,7 @@ mod tests {
         }
 
         let buffer = load_example(&["non_validating", "event_incorrect_type.xes"]);
-        let mut validator = Observer::from((buffer, Validator::default()));
+        let mut validator = Validator::default().into_observer(buffer);
 
         if let Err(Error::ValidationError(msg)) = consume(&mut validator) {
             assert!(msg

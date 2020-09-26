@@ -89,8 +89,8 @@ pub mod tests {
     use crate::dev_util::{assert_is_close, load_example};
     use crate::stream::buffer::Buffer;
     use crate::stream::channel::stream_channel;
-    use crate::stream::observer::Observer;
-    use crate::stream::stats::{Statistics, StatsHandler};
+    use crate::stream::observer::{Handler, Observer};
+    use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{consume, Artifact, Log};
 
     #[test]
@@ -122,16 +122,14 @@ pub mod tests {
                 let (test_sender, test_receiver) = stream_channel(None);
 
                 let split = Split::new(buffer.clone(), test_sender, *ratio, Some(seed));
-                let mut train_counter = Observer::from((split, StatsHandler::default()));
+                let mut train_counter = StatsCollector::default().into_observer(split);
 
                 let artifacts = consume(&mut train_counter).unwrap();
 
                 let [_, train_trace_ct, train_event_ct] =
-                    Artifact::find::<Statistics>(&artifacts)
-                        .unwrap()
-                        .counts();
+                    Artifact::find::<Statistics>(&artifacts).unwrap().counts();
 
-                let mut test_counter = Observer::from((test_receiver, StatsHandler::default()));
+                let mut test_counter = StatsCollector::default().into_observer(test_receiver);
                 let artifacts = consume(&mut test_counter).unwrap();
 
                 let [_, test_trace_ct, test_event_ct] =

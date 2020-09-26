@@ -1,19 +1,20 @@
-//! Infer simple statistics from an event stream.
+//! Infer statistics from an event stream.
 //!
 //! # Example
-//! This example illustrates how to deserialize XES XML from a string and compute basic statistics
-//! on the event stream the .
+//! This example illustrates how to deserialize XES XML from a string and compute statistics from
+//! the event stream.
 //! ```
 //! use std::io;
 //! use promi::stream::{
 //!     Artifact,
 //!     consume,
 //!     observer::Observer,
-//!     stats::{StatsHandler, Statistics},
+//!     stats::{StatsCollector, Statistics},
 //!     Stream,
 //!     StreamSink,
 //!     xes::XesReader
 //! };
+//! use promi::stream::observer::Handler;
 //!
 //! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
 //!            <log xes.version="1.0" xes.features="">
@@ -26,14 +27,23 @@
 //!                        <string key="id" value="B"/>
 //!                    </event>
 //!                </trace>
+//!                <event>
+//!                    <string key="id" value="C"/>
+//!                </event>
+//!                <event>
+//!                    <string key="id" value="D"/>
+//!                </event>
 //!            </log>"#;
 //!
 //! let reader = XesReader::from(io::BufReader::new(s.as_bytes()));
-//! let mut stats = Observer::from((reader, StatsHandler::default()));
+//! let mut stats_collector = StatsCollector::default().into_observer(reader);
 //!
-//! let artifacts = consume(&mut stats).unwrap();
+//! let artifacts = consume(&mut stats_collector).unwrap();
 //!
-//! assert_eq!([1, 2, 2], Artifact::find::<Statistics>(&artifacts).unwrap().counts())
+//! let statistics = Artifact::find::<Statistics>(&artifacts).unwrap();
+//!
+//! assert_eq!([1, 2, 4], statistics.counts());
+//! println!("{}", statistics);
 //! ```
 //!
 
@@ -59,8 +69,11 @@ pub struct Statistics {
 impl Statistics {
     pub fn counts(&self) -> [usize; 3] {
         [
+            // number of traces observed
             self.ct_trace.len(),
+            // number of events observed in traces
             self.ct_trace.iter().sum::<usize>(),
+            // number of events observed in total
             self.ct_event,
         ]
     }
@@ -98,11 +111,11 @@ impl fmt::Display for Statistics {
 
 /// Generate statistics from event stream
 #[derive(Debug)]
-pub struct StatsHandler {
+pub struct StatsCollector {
     pub statistics: Statistics,
 }
 
-impl Default for StatsHandler {
+impl Default for StatsCollector {
     fn default() -> Self {
         Self {
             statistics: Statistics::default(),
@@ -110,7 +123,7 @@ impl Default for StatsHandler {
     }
 }
 
-impl Handler for StatsHandler {
+impl Handler for StatsCollector {
     fn on_trace(&mut self, trace: Trace) -> Result<Option<Trace>> {
         self.statistics.ct_trace.push(trace.events.len());
         Ok(Some(trace))
@@ -147,7 +160,7 @@ mod tests {
         for (d, f, e) in param.iter() {
             let buffer = load_example(&[d, f]);
             let mut observer = Observer::new(buffer);
-            observer.register(StatsHandler::default());
+            observer.register(StatsCollector::default());
 
             let artifacts = consume(&mut observer).unwrap();
             assert_eq!(

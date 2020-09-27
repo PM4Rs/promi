@@ -3,9 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
+use std::hash::Hash;
 use std::mem;
 use std::sync::mpsc::{
-    channel as async_channel, sync_channel, Receiver, Sender as AsyncSender, SyncSender,
+    channel as async_channel, Receiver, Sender as AsyncSender, sync_channel, SyncSender,
 };
 
 use crate::error::{Error, Result};
@@ -120,27 +121,27 @@ pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
     channel(bound)
 }
 
-enum NameSpaceEntry<T, I> {
+enum NameSpaceEntry<T, G> {
     Entry(T),
-    Accessed(I),
+    Generation(G),
 }
 
-impl<T, I: Debug> Debug for NameSpaceEntry<T, I> {
+impl<T, G: Debug> Debug for NameSpaceEntry<T, G> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut f = f.debug_struct("Entry");
 
         match self {
             NameSpaceEntry::Entry(_) => f.field("Entry", &"..."),
-            NameSpaceEntry::Accessed(a) => f.field("Access", a),
+            NameSpaceEntry::Generation(g) => f.field("Generation", g),
         };
 
         f.finish()
     }
 }
 
-impl<T, I> NameSpaceEntry<T, I> {
-    fn take(&mut self, accessed: I) -> Result<T> {
-        let mut new_entry = NameSpaceEntry::Accessed(accessed);
+impl<T, G> NameSpaceEntry<T, G> {
+    fn take(&mut self, accessed: G) -> Result<T> {
+        let mut new_entry = NameSpaceEntry::Generation(accessed);
         mem::swap(self, &mut new_entry);
 
         if let NameSpaceEntry::Entry(entry) = new_entry {
@@ -154,8 +155,8 @@ impl<T, I> NameSpaceEntry<T, I> {
     }
 }
 
-type SenderEntry<T> = NameSpaceEntry<Sender<T>, (usize, usize)>;
-type ReceiverEntry<T> = NameSpaceEntry<Receiver<T>, (usize, usize)>;
+type SenderEntry<T, G> = NameSpaceEntry<Sender<T>, G>;
+type ReceiverEntry<T, G> = NameSpaceEntry<Receiver<T>, G>;
 
 /// Manage channels via keys
 ///
@@ -165,38 +166,35 @@ type ReceiverEntry<T> = NameSpaceEntry<Receiver<T>, (usize, usize)>;
 /// latter are incremented manually and help to distinguish acquiring entities.
 ///
 #[derive(Debug)]
-pub struct ChannelNameSpace<T> {
+pub struct ChannelNameSpace<T, G: Copy> {
     bound: Option<usize>,
-    ct_gen: usize,
-    ct_acq: usize,
-    channels: HashMap<String, (SenderEntry<T>, ReceiverEntry<T>)>,
+    generation: Option<G>,
+    channels: HashMap<String, (SenderEntry<T, G>, ReceiverEntry<T, G>)>,
 }
 
-impl<T> ChannelNameSpace<T> {
+impl<T, G: Copy> ChannelNameSpace<T, G> {
     /// Create a synchronous channel namespace
     pub fn sync(bound: usize) -> Self {
         Self {
             bound: Some(bound),
-            ct_gen: 0,
-            ct_acq: 0,
+            generation: None,
             channels: HashMap::new(),
         }
     }
 }
 
-impl<T> Default for ChannelNameSpace<T> {
+impl<T, G: Copy> Default for ChannelNameSpace<T, G> {
     fn default() -> Self {
         Self {
             bound: None,
-            ct_gen: 0,
-            ct_acq: 0,
+            generation: None,
             channels: HashMap::new(),
         }
     }
 }
 
-impl<T: Send + 'static> ChannelNameSpace<T> {
-    fn lookup(&mut self, key: &str) -> Result<&mut (SenderEntry<T>, ReceiverEntry<T>)> {
+impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
+    fn lookup(&mut self, key: &str) -> Result<&mut (SenderEntry<T, G>, ReceiverEntry<T, G>)> {
         if !self.channels.contains_key(key) {
             let (s, r) = channel(self.bound);
             self.channels.insert(
@@ -211,38 +209,40 @@ impl<T: Send + 'static> ChannelNameSpace<T> {
         }
     }
 
-    /// Aquire the sender for the given key if possible
+    /// Acquire the sender for the given key if possible
     pub fn acquire_sender(&mut self, key: &str) -> Result<Sender<T>> {
-        let accessed = (self.ct_gen, self.ct_acq);
-        let (entry, _) = self.lookup(key)?;
-        let sender = entry
-            .take(accessed)
-            .map_err(|_| Error::ChannelError(format!("sender {:?} was already aquired", key)))?;
-
-        self.ct_acq += 1;
-        Ok(sender)
+        if let Some(generation) = self.generation {
+            let (entry, _) = self.lookup(key)?;
+            let sender = entry.take(generation).map_err(|_| {
+                Error::ChannelError(format!("sender {:?} was already acquired", key))
+            })?;
+            Ok(sender)
+        } else {
+            Err(Error::ChannelError("no generation set".to_string()))
+        }
     }
 
-    /// Aquire the receiver for the given key if possible
+    /// Acquire the receiver for the given key if possible
     pub fn acquire_receiver(&mut self, key: &str) -> Result<Receiver<T>> {
-        let accessed = (self.ct_gen, self.ct_acq);
-        let (_, entry) = self.lookup(key)?;
-        let receiver = entry
-            .take(accessed)
-            .map_err(|_| Error::ChannelError(format!("receiver {:?} was already aquired", key)))?;
-
-        self.ct_acq += 1;
-        Ok(receiver)
+        if let Some(generation) = self.generation {
+            let (_, entry) = self.lookup(key)?;
+            let receiver = entry.take(generation).map_err(|_| {
+                Error::ChannelError(format!("receiver {:?} was already acquired", key))
+            })?;
+            Ok(receiver)
+        } else {
+            Err(Error::ChannelError("no generation set".to_string()))
+        }
     }
 
     /// Increment generation
-    pub fn next_gen(&mut self) {
-        self.ct_gen += 1;
+    pub fn set_generation(&mut self, generation: G) {
+        self.generation = Some(generation);
     }
 
     /// Get current generation
-    pub fn generation(&self) -> usize {
-        self.ct_gen
+    pub fn generation(&self) -> Option<G> {
+        self.generation
     }
 
     /// Compute inter-generation dependencies
@@ -251,24 +251,24 @@ impl<T: Send + 'static> ChannelNameSpace<T> {
     /// generation. This is useful for detecting circular dependencies. Endpoints that have not been
     /// acquired yet cause an error.
     ///
-    pub fn dependencies(&self) -> Result<HashSet<(usize, usize)>> {
+    pub fn dependencies(&self) -> Result<HashSet<(G, G)>> {
         let mut dependencies = HashSet::new();
 
         for (key, channel) in self.channels.iter() {
             match channel {
-                (NameSpaceEntry::Entry(_), NameSpaceEntry::Accessed(_)) => {
+                (NameSpaceEntry::Entry(_), NameSpaceEntry::Generation(_)) => {
                     return Err(Error::ChannelError(format!(
                         "sender {:} was not acquired",
                         key
                     )))
                 }
-                (NameSpaceEntry::Accessed(_), NameSpaceEntry::Entry(_)) => {
+                (NameSpaceEntry::Generation(_), NameSpaceEntry::Entry(_)) => {
                     return Err(Error::ChannelError(format!(
                         "receiver {:} was not acquired",
                         key
                     )))
                 }
-                (NameSpaceEntry::Accessed((a_sg, _)), NameSpaceEntry::Accessed((a_rg, _))) => {
+                (NameSpaceEntry::Generation(a_sg), NameSpaceEntry::Generation(a_rg)) => {
                     dependencies.insert((*a_rg, *a_sg));
                 }
                 _ => (),
@@ -285,19 +285,19 @@ mod tests {
     use std::thread;
 
     use crate::dev_util::{expand_static, open_buffered};
+    use crate::stream::{Artifact, consume, duplicator::Duplicator, xes::XesReader};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
-    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
 
     use super::*;
 
     /// Sets up the following scenario:
-    ///
-    /// The main thread parses a XES file and computes some statistics based on the event stream.
-    /// While doing that, the stream is duplicated twice and sent to two helper threads that do
-    /// nothing but sending the stream back to the main thread. Then, the main thread also computes
-    /// statistics of those duplicated streams and compares them to the original one.
-    ///
+        ///
+        /// The main thread parses a XES file and computes some statistics based on the event stream.
+        /// While doing that, the stream is duplicated twice and sent to two helper threads that do
+        /// nothing but sending the stream back to the main thread. Then, the main thread also computes
+        /// statistics of those duplicated streams and compares them to the original one.
+        ///
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
         let (s_t0_t1, mut r_t0_t1) = stream_channel(None);
@@ -415,55 +415,40 @@ mod tests {
 
     #[test]
     fn test_channel_name_space() {
-        let mut cns = ChannelNameSpace::<usize>::default();
+        let mut cns = ChannelNameSpace::<usize, usize>::default();
 
-        let _ = cns.acquire_sender("foo").unwrap();
-        let _ = cns.acquire_receiver("foo").unwrap();
+        assert!(cns.acquire_sender("foo").is_err());
+
+        cns.set_generation(0);
+        let s_1 = cns.acquire_sender("foo").unwrap();
+        let r_1 = cns.acquire_receiver("foo").unwrap();
+
+        s_1.send(13).unwrap();
+        assert_eq!(r_1.recv().unwrap(), 13);
 
         assert!(cns.acquire_sender("foo").is_err());
         assert!(cns.acquire_receiver("foo").is_err());
 
-        let (s, r) = cns.channels.get("foo").unwrap();
-        match s {
-            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (0, 0)),
-            _ => unreachable!(),
-        }
-        match r {
-            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (0, 1)),
-            _ => unreachable!(),
-        }
+        cns.set_generation(1);
+        let s_2 = cns.acquire_sender("bar").unwrap();
+        cns.set_generation(2);
+        let r_2 = cns.acquire_receiver("bar").unwrap();
 
-        cns.next_gen();
-
-        let _ = cns.acquire_sender("bar").unwrap();
-        cns.next_gen();
-        let _ = cns.acquire_receiver("bar").unwrap();
+        s_2.send(37).unwrap();
+        assert_eq!(r_2.recv().unwrap(), 37);
 
         assert!(cns.acquire_sender("bar").is_err());
         assert!(cns.acquire_receiver("bar").is_err());
 
-        let (s, r) = cns.channels.get("bar").unwrap();
-        match s {
-            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (1, 2)),
-            _ => unreachable!(),
-        }
-        match r {
-            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (2, 3)),
-            _ => unreachable!(),
-        }
-
-        cns.next_gen();
-
+        cns.set_generation(3);
         let _ = cns.acquire_sender("fnord").unwrap();
 
-        let (s, r) = cns.channels.get("fnord").unwrap();
-        match s {
-            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (3, 4)),
-            _ => unreachable!(),
-        }
-        match r {
-            NameSpaceEntry::Entry(_) => (),
-            _ => unreachable!(),
-        }
+        assert!(cns.dependencies().is_err());
+
+        let _ = cns.acquire_receiver("fnord").unwrap();
+        let dependencies: HashSet<(usize, usize)> =
+            vec![(0, 0), (2, 1), (3, 3)].into_iter().collect();
+
+        assert_eq!(dependencies, cns.dependencies().unwrap());
     }
 }

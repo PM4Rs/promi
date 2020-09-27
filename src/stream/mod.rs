@@ -11,6 +11,13 @@
 //! Logs and Event Streams_, 1849:2016, 2016](https://standards.ieee.org/standard/1849-2016.html)
 //!
 
+use std::any::Any;
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
+use std::fmt::Debug;
+
+use crate::{DateTime, Error, Result};
+
 // modules
 pub mod buffer;
 pub mod channel;
@@ -23,17 +30,6 @@ pub mod stats;
 pub mod validator;
 pub mod xes;
 pub mod xml_util;
-
-// standard library
-use std::any::Any;
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
-use std::fmt::Debug;
-
-// third party
-
-// local
-use crate::{DateTime, Error, Result};
 
 /// Mirrors types available in `AttributeValue` enum
 #[derive(Debug, Clone, PartialEq)]
@@ -474,30 +470,24 @@ impl Attributes for Element {
 /// Container for stream elements that can express the empty element as well as errors
 pub type ResOpt = Result<Option<Element>>;
 
-/// Allows for down casting to an arbitrary type
-pub trait AsAny: Send + Debug {
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
 /// Container for arbitrary artifacts a stream processing pipeline creates
 #[derive(Debug)]
 pub struct Artifact {
-    inner: Box<dyn AsAny>,
+    inner: Box<dyn Any + Send>,
 }
 
 impl Artifact {
     /// Tries to down cast the artifact to the given type
     pub fn cast_ref<T: 'static>(&self) -> Option<&T> {
-        self.inner.as_any().downcast_ref::<T>()
+        self.inner.downcast_ref::<T>()
     }
 
-    /// Tries to down cast the artifact mutably to the given type
+    /// Tries to cast down the artifact mutably to the given type
     pub fn cast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.inner.as_any_mut().downcast_mut::<T>()
+        self.inner.downcast_mut::<T>()
     }
 
-    /// Returns the first artifact that can be down casted to the given type
+    /// Returns the first artifact that can be casted down to the given type
     pub fn find<T: 'static>(artifacts: &[Artifact]) -> Option<&T> {
         for artifact in artifacts {
             if let Some(value) = artifact.cast_ref::<T>() {
@@ -507,17 +497,16 @@ impl Artifact {
         None
     }
 
-    /// Returns all artifacts that can be down casted to the given type
+    /// Returns all artifacts that can be casted down to the given type
     pub fn find_all<T: 'static>(artifacts: &[Artifact]) -> Box<dyn Iterator<Item = &T> + '_> {
         Box::new(artifacts.iter().filter_map(|a| a.cast_ref::<T>()))
     }
 }
 
-impl<T: AsAny + 'static> From<T> for Artifact {
-    fn from(inner: T) -> Self {
-        Self {
-            inner: Box::new(inner),
-        }
+impl Artifact {
+    /// Create new artifact from any given item
+    pub fn new<T: Any + Send + 'static>(t: T) -> Self {
+        Self { inner: Box::new(t) }
     }
 }
 
@@ -553,6 +542,24 @@ pub trait Stream: Send {
         }
         artifacts.extend(Stream::release_artifacts(self)?);
         Ok(artifacts)
+    }
+}
+
+impl Stream for Box<dyn Stream> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        self.as_ref().get_inner()
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        self.as_mut().get_inner_mut()
+    }
+
+    fn next(&mut self) -> ResOpt {
+        self.as_mut().next()
+    }
+
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.as_mut().release_artifacts()
     }
 }
 
@@ -618,12 +625,34 @@ pub trait StreamSink: Send {
     }
 }
 
+impl StreamSink for Box<dyn StreamSink> {
+    fn on_open(&mut self) -> Result<()> {
+        self.as_mut().on_open()
+    }
+
+    fn on_element(&mut self, element: Element) -> Result<()> {
+        self.as_mut().on_element(element)
+    }
+
+    fn on_close(&mut self) -> Result<()> {
+        self.as_mut().on_close()
+    }
+
+    fn on_error(&mut self, error: Error) -> Result<()> {
+        self.as_mut().on_error(error)
+    }
+
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.as_mut().release_artifacts()
+    }
+}
+
 /// A dummy sink that does nothing but consuming the given stream
 pub struct Void;
 
 impl Default for Void {
     fn default() -> Self {
-        Void { }
+        Void {}
     }
 }
 
@@ -640,8 +669,9 @@ pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Artifact>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::dev_util::load_example;
+
+    use super::*;
 
     #[test]
     pub fn test_consume() {

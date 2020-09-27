@@ -47,13 +47,12 @@
 //! ```
 //!
 
-use std::any::Any;
 use std::fmt;
 use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{observer::Handler, Artifact, AsAny, Event, Trace};
+use crate::stream::{Artifact, Event, observer::Handler, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone)]
@@ -81,16 +80,6 @@ impl Default for Statistics {
             ct_trace: Vec::new(),
             ct_event: 0,
         }
-    }
-}
-
-impl AsAny for Statistics {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }
 
@@ -131,7 +120,7 @@ impl Handler for StatsCollector {
     }
 
     fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        Ok(vec![Artifact::from(mem::take(&mut self.statistics))])
+        Ok(vec![Artifact::new(mem::take(&mut self.statistics))])
     }
 }
 

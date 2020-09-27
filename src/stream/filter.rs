@@ -1,10 +1,5 @@
 //! Filtering event streams.
 
-// standard library
-
-// third party
-
-// local
 use crate::error::Result;
 use crate::stream::{
     observer::{Handler, Observer},
@@ -119,10 +114,11 @@ pub fn from_cnf<'a, T: Stream>(
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
     use crate::stream::buffer::Buffer;
     use crate::stream::Element;
     use crate::stream::StreamSink;
+
+    use super::*;
 
     pub type TokenMapper = Box<dyn Fn(&dyn Attributes) -> Result<String> + Send>;
 

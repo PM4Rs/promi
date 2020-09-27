@@ -10,27 +10,22 @@
 //! > defined attributes per component.
 //!
 
-// modules
-pub mod concept;
-pub mod organizational;
-pub mod time;
-
-// standard library
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Mutex;
-
-// third party
-
-// local
-use crate::stream::validator::ValidatorFn;
-use crate::stream::{Attributes, ExtensionDecl, Meta};
-use crate::{Error, Result};
 
 // expose extensions
 pub use concept::Concept;
 pub use organizational::Org;
 pub use time::Time;
+
+use crate::stream::validator::ValidatorFn;
+use crate::stream::{Attributes, ExtensionDecl, Meta};
+use crate::{Error, Result};
+
+pub mod concept;
+pub mod organizational;
+pub mod time;
 
 /// Helper struct that holds references to object safe parts of an extension
 pub struct RegistryEntry {

@@ -46,20 +46,17 @@
 //! ```
 //!
 
-// standard library
 use std::collections::{BTreeMap, HashMap};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::io;
 
-// third party
 use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
 use quick_xml::{Reader as QxReader, Writer as QxWriter};
 
-// local
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
@@ -744,15 +741,17 @@ impl<W: io::Write> XesWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::buffer::Buffer;
-    use crate::stream::consume;
     use std::fs;
     use std::io;
     use std::io::Write;
     use std::path::PathBuf;
     use std::process::{Command, Output, Stdio};
+
+    use crate::dev_util::{expand_static, open_buffered};
+    use crate::stream::buffer::Buffer;
+    use crate::stream::consume;
+
+    use super::*;
 
     fn deserialize_dir(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {

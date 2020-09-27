@@ -1,13 +1,9 @@
 //! Common promi error type
 //!
 
-// standard library
 use std::fmt::Debug;
 
-// third party
 use thiserror::Error;
-
-// local
 
 /// A common error type for promi
 #[derive(Error, Debug, Clone)]

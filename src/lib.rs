@@ -32,21 +32,21 @@
 //! ```
 //!
 
-#[macro_use]
-extern crate log as logging;
+extern crate chrono;
 #[macro_use]
 extern crate lazy_static;
-extern crate chrono;
+#[macro_use]
+extern crate log as logging;
 extern crate quick_xml;
 extern crate regex;
 extern crate thiserror;
+
+pub use error::{Error, Result};
 
 #[cfg(test)]
 pub mod dev_util;
 pub mod error;
 pub mod stream;
-
-pub use error::{Error, Result};
 
 /// promi's datetime type
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;

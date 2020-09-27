@@ -1,19 +1,15 @@
 //! Useful functions for developing promi that may panic.
 //!
 
-// standard library
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-// third party
-
-// local
 use crate::stream::buffer::Buffer;
-use crate::stream::xes::XesReader;
 use crate::stream::StreamSink;
+use crate::stream::xes::XesReader;
 
 /// Access assets
 ///

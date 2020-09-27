@@ -1,17 +1,15 @@
-// standard library
+/// The standard time extension
 use std::fmt::Debug;
+use std::ops::Neg;
 
-// third party
 use chrono::Duration;
 
-// local
 use crate::error::Result;
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
 use crate::stream::{ElementType, Meta};
 use crate::{DateTime, Error};
-use std::ops::Neg;
 
 #[derive(Debug)]
 pub enum TimeType<'a> {
@@ -189,12 +187,13 @@ impl Time<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::dev_util::load_example;
     use crate::stream::filter::tests::test_filter;
-    use crate::stream::observer::{Handler, Observer};
+    use crate::stream::observer::Handler;
     use crate::stream::validator::Validator;
     use crate::stream::{consume, Element, Stream};
+
+    use super::*;
 
     #[test]
     fn test_view() {

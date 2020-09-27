@@ -1,12 +1,8 @@
 //! Perform a train-test-split on an event stream
 
-// standard library
-
-// third party
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-// local
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
 /// Train-Test split
@@ -85,13 +81,14 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
     use crate::dev_util::{assert_is_close, load_example};
     use crate::stream::buffer::Buffer;
     use crate::stream::channel::stream_channel;
-    use crate::stream::observer::{Handler, Observer};
+    use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{consume, Artifact, Log};
+
+    use super::*;
 
     #[test]
     fn test_split() {

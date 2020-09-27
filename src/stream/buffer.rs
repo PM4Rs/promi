@@ -5,13 +5,9 @@
 //! a thread safe way of buffering an event stream, have a look at channels.
 //!
 
-// standard library
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-// third party
-
-// local
 use crate::error::{Error, Result};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
@@ -75,9 +71,10 @@ impl Buffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::dev_util::load_example;
     use crate::stream;
+
+    use super::*;
 
     #[test]
     fn test_buffer() {

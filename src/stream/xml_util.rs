@@ -12,12 +12,8 @@
 //! * `xs:anyURI`
 //!
 
-// standard library
-
-// third party
 use regex::Regex;
 
-// local
 use crate::error::{Error, Result};
 
 // XML character classes

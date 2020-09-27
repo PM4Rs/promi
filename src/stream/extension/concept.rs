@@ -1,9 +1,6 @@
-// standard library
-
-// third party
+/// The standard time extension
 use regex::Regex;
 
-// local
 use crate::error::{Error, Result};
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
@@ -106,11 +103,13 @@ impl Concept<'_> {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
+    use regex::Regex;
+
     use crate::dev_util::load_example;
     use crate::stream::filter::tests::test_filter;
     use crate::stream::{Element, Stream};
-    use regex::Regex;
+
+    use super::*;
 
     #[test]
     fn test_view() {

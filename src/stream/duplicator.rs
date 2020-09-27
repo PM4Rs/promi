@@ -1,10 +1,5 @@
 //! Duplicate an event stream
 
-// standard library
-
-// third party
-
-// local
 use crate::stream::{ResOpt, Stream, StreamSink};
 
 /// Creates a copy of an extensible event stream on the fly
@@ -68,12 +63,14 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::path::PathBuf;
+
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::tests::TestSink;
     use crate::stream::xes::XesReader;
     use crate::stream::StreamSink;
-    use std::path::PathBuf;
+
+    use super::*;
 
     fn _test_sink_duplicator(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
         let f = open_buffered(&path);

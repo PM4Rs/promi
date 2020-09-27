@@ -1,10 +1,5 @@
 //! A stateful observer that allows for registering callbacks to handle stream elements
 
-// standard library
-
-// third party
-
-// local
 use crate::error::{Error, Result};
 use crate::stream::{Artifact, Element, ElementType, Event, Meta, ResOpt, Stream, Trace};
 
@@ -226,10 +221,12 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::path::PathBuf;
+
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::{consume, xes::XesReader};
-    use std::path::PathBuf;
+
+    use super::*;
 
     #[derive(Debug)]
     struct TestHandler {

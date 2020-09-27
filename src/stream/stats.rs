@@ -47,15 +47,11 @@
 //! ```
 //!
 
-// standard library
 use std::any::Any;
 use std::fmt;
 use std::fmt::Debug;
 use std::mem;
 
-// third party
-
-// local
 use crate::error::Result;
 use crate::stream::{observer::Handler, Artifact, AsAny, Event, Trace};
 
@@ -141,9 +137,10 @@ impl Handler for StatsCollector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::dev_util::load_example;
     use crate::stream::{consume, observer::Observer};
+
+    use super::*;
 
     #[test]
     fn test_stream_stats() {

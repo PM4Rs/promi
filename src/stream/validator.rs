@@ -6,11 +6,6 @@
 //! - semantic validation via extensions
 //!
 
-// standard library
-
-// third party
-
-// local
 use crate::stream::extension::REGISTRY;
 use crate::stream::observer::Handler;
 use crate::stream::{Attributes, Event, Meta, Scope, Trace};
@@ -89,9 +84,10 @@ impl Handler for Validator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::dev_util::load_example;
     use crate::stream::consume;
+
+    use super::*;
 
     #[test]
     fn test_globals_validation() {

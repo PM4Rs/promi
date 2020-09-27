@@ -1,59 +1,97 @@
-//! Thread safe and buffered channels
+//! Thread safe channels to enable secure, concurrent communication
 //!
 
-// standard library
-use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Formatter};
+use std::mem;
+use std::sync::mpsc::{
+    channel as async_channel, sync_channel, Receiver, Sender as AsyncSender, SyncSender,
+};
 
-// third party
-
-// local
 use crate::error::{Error, Result};
 use crate::stream::{Element, ResOpt, Stream, StreamSink};
 
-trait ChannelSender {
-    fn send_res_opt(&mut self, element: ResOpt) -> Result<()>;
+trait ChannelSender<T> {
+    fn send_t(&self, t: T) -> Result<()>;
 }
 
-impl ChannelSender for Sender<ResOpt> {
-    fn send_res_opt(&mut self, element: ResOpt) -> Result<()> {
-        self.send(element)?;
+impl<T: Send> ChannelSender<T> for AsyncSender<T> {
+    fn send_t(&self, t: T) -> Result<()> {
+        self.send(t)
+            .map_err(|_| Error::ChannelError("unable to send item".to_string()))?;
         Ok(())
     }
 }
 
-impl ChannelSender for SyncSender<ResOpt> {
-    fn send_res_opt(&mut self, element: ResOpt) -> Result<()> {
-        self.send(element)?;
+impl<T: Send> ChannelSender<T> for SyncSender<T> {
+    fn send_t(&self, t: T) -> Result<()> {
+        self.send(t)
+            .map_err(|_| Error::ChannelError("unable to send item".to_string()))?;
         Ok(())
     }
 }
 
-/// Represents the sending endpoint of a (synchronous) channel
-pub struct StreamSender {
-    sender: Box<dyn ChannelSender + Send>,
+/// Container for (a)synchronous sender
+pub struct Sender<T> {
+    sender: Box<dyn ChannelSender<T> + Send>,
 }
+
+impl<T> Sender<T> {
+    /// Send item to channel
+    pub fn send(&self, t: T) -> Result<()> {
+        self.sender.send_t(t)
+    }
+}
+
+/// Generic sender-receiver pair
+pub type Channel<T> = (Sender<T>, Receiver<T>);
+
+/// Create generic, optionally synchronous channel (if bound is set)
+pub fn channel<T: Send + 'static>(bound: Option<usize>) -> Channel<T> {
+    match bound {
+        Some(bound) => {
+            let (sender, receiver) = sync_channel(bound);
+            (
+                Sender {
+                    sender: Box::new(sender),
+                },
+                receiver,
+            )
+        }
+        None => {
+            let (sender, receiver) = async_channel();
+            (
+                Sender {
+                    sender: Box::new(sender),
+                },
+                receiver,
+            )
+        }
+    }
+}
+
+/// Represents the sending endpoint of a (synchronous) stream channel
+pub type StreamSender = Sender<ResOpt>;
 
 impl StreamSink for StreamSender {
     fn on_element(&mut self, element: Element) -> Result<()> {
-        self.sender.send_res_opt(Ok(Some(element)))?;
+        self.sender.send_t(Ok(Some(element)))?;
         Ok(())
     }
 
     fn on_close(&mut self) -> Result<()> {
-        self.sender.send_res_opt(Ok(None))?;
+        self.sender.send_t(Ok(None))?;
         Ok(())
     }
 
     fn on_error(&mut self, error: Error) -> Result<()> {
-        self.sender.send_res_opt(Err(error))?;
+        self.sender.send_t(Err(error))?;
         Ok(())
     }
 }
 
 /// Represents the receiving endpoint of a channel
-pub struct StreamReceiver {
-    receiver: Receiver<ResOpt>,
-}
+pub type StreamReceiver = Receiver<ResOpt>;
 
 impl Stream for StreamReceiver {
     fn get_inner(&self) -> Option<&dyn Stream> {
@@ -65,12 +103,12 @@ impl Stream for StreamReceiver {
     }
 
     fn next(&mut self) -> ResOpt {
-        self.receiver.recv()?
+        self.recv()?
     }
 }
 
 /// A stream sender-receiver pair
-pub type StreamChannel = (StreamSender, StreamReceiver);
+pub type StreamChannel = Channel<ResOpt>;
 
 /// Create a thread safe (a)synchronous stream channel
 ///
@@ -79,37 +117,179 @@ pub type StreamChannel = (StreamSender, StreamReceiver);
 /// theoretically infinite sized buffer. Hence, sending will never block.
 ///
 pub fn stream_channel(bound: Option<usize>) -> StreamChannel {
-    match bound {
-        Some(bound) => {
-            let (sender, receiver) = sync_channel(bound);
-            (
-                StreamSender {
-                    sender: Box::new(sender),
-                },
-                StreamReceiver { receiver },
-            )
+    channel(bound)
+}
+
+enum NameSpaceEntry<T, I> {
+    Entry(T),
+    Accessed(I),
+}
+
+impl<T, I: Debug> Debug for NameSpaceEntry<T, I> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut f = f.debug_struct("Entry");
+
+        match self {
+            NameSpaceEntry::Entry(_) => f.field("Entry", &"..."),
+            NameSpaceEntry::Accessed(a) => f.field("Access", a),
+        };
+
+        f.finish()
+    }
+}
+
+impl<T, I> NameSpaceEntry<T, I> {
+    fn take(&mut self, accessed: I) -> Result<T> {
+        let mut new_entry = NameSpaceEntry::Accessed(accessed);
+        mem::swap(self, &mut new_entry);
+
+        if let NameSpaceEntry::Entry(entry) = new_entry {
+            Ok(entry)
+        } else {
+            mem::swap(self, &mut new_entry);
+            Err(Error::ChannelError(
+                "entry was already acquired".to_string(),
+            ))
         }
-        None => {
-            let (sender, receiver) = channel();
-            (
-                StreamSender {
-                    sender: Box::new(sender),
-                },
-                StreamReceiver { receiver },
-            )
+    }
+}
+
+type SenderEntry<T> = NameSpaceEntry<Sender<T>, (usize, usize)>;
+type ReceiverEntry<T> = NameSpaceEntry<Receiver<T>, (usize, usize)>;
+
+/// Manage channels via keys
+///
+/// Sometimes the respective counter endpoint of a channel is not yet known in the moment of its
+/// creation. A channel namespace let's one acquire channel endpoints via a key and keeps the other
+/// end for later acquisition. Further, it keeps track of the access order and generations. The
+/// latter are incremented manually and help to distinguish acquiring entities.
+///
+#[derive(Debug)]
+pub struct ChannelNameSpace<T> {
+    bound: Option<usize>,
+    ct_gen: usize,
+    ct_acq: usize,
+    channels: HashMap<String, (SenderEntry<T>, ReceiverEntry<T>)>,
+}
+
+impl<T> ChannelNameSpace<T> {
+    /// Create a synchronous channel namespace
+    pub fn sync(bound: usize) -> Self {
+        Self {
+            bound: Some(bound),
+            ct_gen: 0,
+            ct_acq: 0,
+            channels: HashMap::new(),
         }
+    }
+}
+
+impl<T> Default for ChannelNameSpace<T> {
+    fn default() -> Self {
+        Self {
+            bound: None,
+            ct_gen: 0,
+            ct_acq: 0,
+            channels: HashMap::new(),
+        }
+    }
+}
+
+impl<T: Send + 'static> ChannelNameSpace<T> {
+    fn lookup(&mut self, key: &str) -> Result<&mut (SenderEntry<T>, ReceiverEntry<T>)> {
+        if !self.channels.contains_key(key) {
+            let (s, r) = channel(self.bound);
+            self.channels.insert(
+                key.to_string(),
+                (NameSpaceEntry::Entry(s), NameSpaceEntry::Entry(r)),
+            );
+        }
+
+        match self.channels.get_mut(key) {
+            Some(channel) => Ok(channel),
+            None => unreachable!(),
+        }
+    }
+
+    /// Aquire the sender for the given key if possible
+    pub fn acquire_sender(&mut self, key: &str) -> Result<Sender<T>> {
+        let accessed = (self.ct_gen, self.ct_acq);
+        let (entry, _) = self.lookup(key)?;
+        let sender = entry
+            .take(accessed)
+            .map_err(|_| Error::ChannelError(format!("sender {:?} was already aquired", key)))?;
+
+        self.ct_acq += 1;
+        Ok(sender)
+    }
+
+    /// Aquire the receiver for the given key if possible
+    pub fn acquire_receiver(&mut self, key: &str) -> Result<Receiver<T>> {
+        let accessed = (self.ct_gen, self.ct_acq);
+        let (_, entry) = self.lookup(key)?;
+        let receiver = entry
+            .take(accessed)
+            .map_err(|_| Error::ChannelError(format!("receiver {:?} was already aquired", key)))?;
+
+        self.ct_acq += 1;
+        Ok(receiver)
+    }
+
+    /// Increment generation
+    pub fn next_gen(&mut self) {
+        self.ct_gen += 1;
+    }
+
+    /// Get current generation
+    pub fn generation(&self) -> usize {
+        self.ct_gen
+    }
+
+    /// Compute inter-generation dependencies
+    ///
+    /// Compute inter-generation dependencies i.e. tuples of receiver generation and sender
+    /// generation. This is useful for detecting circular dependencies. Endpoints that have not been
+    /// acquired yet cause an error.
+    ///
+    pub fn dependencies(&self) -> Result<HashSet<(usize, usize)>> {
+        let mut dependencies = HashSet::new();
+
+        for (key, channel) in self.channels.iter() {
+            match channel {
+                (NameSpaceEntry::Entry(_), NameSpaceEntry::Accessed(_)) => {
+                    return Err(Error::ChannelError(format!(
+                        "sender {:} was not acquired",
+                        key
+                    )))
+                }
+                (NameSpaceEntry::Accessed(_), NameSpaceEntry::Entry(_)) => {
+                    return Err(Error::ChannelError(format!(
+                        "receiver {:} was not acquired",
+                        key
+                    )))
+                }
+                (NameSpaceEntry::Accessed((a_sg, _)), NameSpaceEntry::Accessed((a_rg, _))) => {
+                    dependencies.insert((*a_rg, *a_sg));
+                }
+                _ => (),
+            }
+        }
+
+        Ok(dependencies)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::path::PathBuf;
+    use std::thread;
+
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
-    use std::path::PathBuf;
-    use std::thread;
+
+    use super::*;
 
     /// Sets up the following scenario:
     ///
@@ -231,5 +411,59 @@ mod tests {
         drop(s);
 
         assert!(r.next().is_err());
+    }
+
+    #[test]
+    fn test_channel_name_space() {
+        let mut cns = ChannelNameSpace::<usize>::default();
+
+        let _ = cns.acquire_sender("foo").unwrap();
+        let _ = cns.acquire_receiver("foo").unwrap();
+
+        assert!(cns.acquire_sender("foo").is_err());
+        assert!(cns.acquire_receiver("foo").is_err());
+
+        let (s, r) = cns.channels.get("foo").unwrap();
+        match s {
+            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (0, 0)),
+            _ => unreachable!(),
+        }
+        match r {
+            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (0, 1)),
+            _ => unreachable!(),
+        }
+
+        cns.next_gen();
+
+        let _ = cns.acquire_sender("bar").unwrap();
+        cns.next_gen();
+        let _ = cns.acquire_receiver("bar").unwrap();
+
+        assert!(cns.acquire_sender("bar").is_err());
+        assert!(cns.acquire_receiver("bar").is_err());
+
+        let (s, r) = cns.channels.get("bar").unwrap();
+        match s {
+            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (1, 2)),
+            _ => unreachable!(),
+        }
+        match r {
+            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (2, 3)),
+            _ => unreachable!(),
+        }
+
+        cns.next_gen();
+
+        let _ = cns.acquire_sender("fnord").unwrap();
+
+        let (s, r) = cns.channels.get("fnord").unwrap();
+        match s {
+            NameSpaceEntry::Accessed(a) => assert_eq!(*a, (3, 4)),
+            _ => unreachable!(),
+        }
+        match r {
+            NameSpaceEntry::Entry(_) => (),
+            _ => unreachable!(),
+        }
     }
 }

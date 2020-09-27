@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use crate::stream::buffer::Buffer;
-use crate::stream::StreamSink;
 use crate::stream::xes::XesReader;
+use crate::stream::StreamSink;
 
 /// Access assets
 ///

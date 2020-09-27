@@ -52,7 +52,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{Artifact, Event, observer::Handler, Trace};
+use crate::stream::{observer::Handler, Artifact, Event, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone)]

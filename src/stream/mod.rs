@@ -525,8 +525,8 @@ pub trait Stream: Send {
     /// Return the next stream element
     fn next(&mut self) -> ResOpt;
 
-    /// Release artifacts of stream
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    /// Callback that releases artifacts of stream
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
         Ok(vec![])
     }
 
@@ -540,7 +540,7 @@ pub trait Stream: Send {
         if let Some(inner) = self.get_inner_mut() {
             artifacts.extend(Stream::emit_artifacts(inner)?);
         }
-        artifacts.extend(Stream::release_artifacts(self)?);
+        artifacts.extend(Stream::on_emit_artifacts(self)?);
         Ok(artifacts)
     }
 }
@@ -558,8 +558,8 @@ impl Stream for Box<dyn Stream> {
         self.as_mut().next()
     }
 
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        self.as_mut().release_artifacts()
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.as_mut().on_emit_artifacts()
     }
 }
 
@@ -588,12 +588,12 @@ pub trait StreamSink: Send {
         Ok(())
     }
 
-    /// Release artifacts of stream sink
+    /// Emit artifacts of stream sink
     ///
     /// A stream sink may aggregate data over time that is released by calling this method. Usually,
     /// this happens at the end of the stream.
     ///
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
         Ok(vec![])
     }
 
@@ -620,7 +620,7 @@ pub trait StreamSink: Send {
         // collect artifacts
         Ok(Stream::emit_artifacts(stream)?
             .into_iter()
-            .chain(StreamSink::release_artifacts(self)?.into_iter())
+            .chain(StreamSink::on_emit_artifacts(self)?.into_iter())
             .collect())
     }
 }
@@ -642,8 +642,8 @@ impl StreamSink for Box<dyn StreamSink> {
         self.as_mut().on_error(error)
     }
 
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        self.as_mut().release_artifacts()
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.as_mut().on_emit_artifacts()
     }
 }
 

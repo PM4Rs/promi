@@ -208,7 +208,7 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
         Ok(None)
     }
 
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
         let mut artifacts = Vec::new();
 
         for handler in self.handler.iter_mut() {

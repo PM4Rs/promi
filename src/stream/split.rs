@@ -3,8 +3,8 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-use crate::Result;
 use crate::stream::{Artifact, Element, ResOpt, Stream, StreamSink};
+use crate::Result;
 
 /// Train-Test split
 ///
@@ -79,19 +79,19 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
         }
     }
 
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        self.test_sink.release_artifacts()
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.test_sink.on_emit_artifacts()
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use crate::dev_util::{assert_is_close, load_example};
-    use crate::stream::{Artifact, consume, Log};
     use crate::stream::buffer::Buffer;
     use crate::stream::channel::stream_channel;
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
+    use crate::stream::{consume, Artifact, Log};
 
     use super::*;
 

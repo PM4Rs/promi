@@ -1,6 +1,7 @@
 //! Duplicate an event stream
 
-use crate::stream::{ResOpt, Stream, StreamSink};
+use crate::Result;
+use crate::stream::{ResOpt, Stream, StreamSink, Artifact};
 
 /// Creates a copy of an extensible event stream on the fly
 ///
@@ -58,6 +59,10 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
                 Err(error)
             }
         }
+    }
+
+    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        self.sink.release_artifacts()
     }
 }
 

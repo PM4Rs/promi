@@ -55,7 +55,7 @@ use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
-use quick_xml::{Reader as QxReader, Writer as QxWriter};
+use quick_xml::{Result as QxResult, Reader as QxReader, Writer as QxWriter};
 
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
@@ -120,7 +120,7 @@ impl Attribute {
         key: &str,
         value: &AttributeValue,
         writer: &mut QxWriter<W>,
-    ) -> Result<usize> {
+    ) -> Result<()> {
         let temp_string: String;
 
         let (tag, value) = match value {
@@ -140,7 +140,6 @@ impl Attribute {
             AttributeValue::Boolean(value) => ("boolean", if *value { "true" } else { "false" }),
             AttributeValue::Id(value) => ("id", value.as_str()),
             AttributeValue::List(attributes) => {
-                let mut bytes: usize = 0;
                 let tag_l = b"list";
                 let tag_v = b"values";
                 let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
@@ -148,17 +147,16 @@ impl Attribute {
 
                 event_l.push_attribute(("key", validate_name(key)?));
 
-                bytes += writer.write_event(QxEvent::Start(event_l))?;
-                bytes += writer.write_event(QxEvent::Start(event_v))?;
+                writer.write_event(QxEvent::Start(event_l))?;
+                writer.write_event(QxEvent::Start(event_v))?;
+                attributes
+                    .iter()
+                    .map(|a| a.write_xes(writer))
+                    .collect::<Result<()>>()?;
+                writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_v)))?;
+                writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_l)))?;
 
-                for attribute in attributes.iter() {
-                    bytes += attribute.write_xes(writer)?;
-                }
-
-                bytes += writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_v)))?;
-                bytes += writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_l)))?;
-
-                return Ok(bytes);
+                return Ok(());
             }
         };
 
@@ -171,7 +169,7 @@ impl Attribute {
         Ok(writer.write_event(QxEvent::Empty(event))?)
     }
 
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         Self::write_xes_kv(&self.key, &self.value, writer)
     }
 }
@@ -206,7 +204,7 @@ impl TryFrom<XesIntermediate> for ExtensionDecl {
 }
 
 impl ExtensionDecl {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         let tag = b"extension";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -237,9 +235,8 @@ impl TryFrom<XesIntermediate> for Global {
 }
 
 impl Global {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         let tag = b"global";
-        let mut bytes: usize = 0;
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
         match self.scope {
@@ -247,15 +244,14 @@ impl Global {
             Scope::Trace => event.push_attribute(("scope", "trace")),
         }
 
-        bytes += writer.write_event(QxEvent::Start(event))?;
+        writer.write_event(QxEvent::Start(event))?;
+        self.attributes
+            .iter()
+            .map(|a| a.write_xes(writer))
+            .collect::<Result<()>>()?;
+        writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
-        for attribute in self.attributes.iter() {
-            bytes += attribute.write_xes(writer)?;
-        }
-
-        bytes += writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
-
-        Ok(bytes)
+        Ok(())
     }
 }
 
@@ -272,7 +268,7 @@ impl TryFrom<XesIntermediate> for ClassifierDecl {
 }
 
 impl ClassifierDecl {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         let tag = b"classifier";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -288,26 +284,25 @@ impl ClassifierDecl {
 }
 
 impl Meta {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
-        let mut bytes: usize = 0;
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+        self.extensions
+            .iter()
+            .map(|e| e.write_xes(writer))
+            .collect::<Result<()>>()?;
+        self.globals
+            .iter()
+            .map(|g| g.write_xes(writer))
+            .collect::<Result<()>>()?;
+        self.classifiers
+            .iter()
+            .map(|c| c.write_xes(writer))
+            .collect::<Result<()>>()?;
+        self.attributes
+            .iter()
+            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
+            .collect::<Result<()>>()?;
 
-        for extension in self.extensions.iter() {
-            bytes += extension.write_xes(writer)?;
-        }
-
-        for global in self.globals.iter() {
-            bytes += global.write_xes(writer)?;
-        }
-
-        for classifier in self.classifiers.iter() {
-            bytes += classifier.write_xes(writer)?;
-        }
-
-        for (key, value) in self.attributes.iter() {
-            bytes += Attribute::write_xes_kv(key, value, writer)?;
-        }
-
-        Ok(bytes)
+        Ok(())
     }
 }
 
@@ -331,20 +326,18 @@ impl TryFrom<XesIntermediate> for Event {
 }
 
 impl Event {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         let tag = b"event";
-        let mut bytes: usize = 0;
         let event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
-        bytes += writer.write_event(QxEvent::Start(event))?;
+        writer.write_event(QxEvent::Start(event))?;
+        self.attributes
+            .iter()
+            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
+            .collect::<Result<()>>()?;
+        writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
-        for (key, value) in self.attributes.iter() {
-            bytes += Attribute::write_xes_kv(key, value, writer)?;
-        }
-
-        bytes += writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
-
-        Ok(bytes)
+        Ok(())
     }
 }
 
@@ -373,24 +366,22 @@ impl TryFrom<XesIntermediate> for Trace {
 }
 
 impl Trace {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<usize> {
+    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         let tag = b"trace";
-        let mut bytes: usize = 0;
         let event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
-        bytes += writer.write_event(QxEvent::Start(event))?;
+        writer.write_event(QxEvent::Start(event))?;
+        self.attributes
+            .iter()
+            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
+            .collect::<Result<()>>()?;
+        self.events
+            .iter()
+            .map(|e| e.write_xes(writer))
+            .collect::<Result<()>>()?;
+        writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
-        for (key, value) in self.attributes.iter() {
-            bytes += Attribute::write_xes_kv(key, value, writer)?;
-        }
-
-        for trace in self.events.iter() {
-            bytes += trace.write_xes(writer)?;
-        }
-
-        bytes += writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
-
-        Ok(bytes)
+        Ok(())
     }
 }
 
@@ -562,19 +553,19 @@ impl<R: io::BufRead> XesReader<R> {
                     return Err(Error::StateError(format!("unexpected: {:?}", value)))
                 }
                 XesElement::Trace(trace) => {
-                    if let Some(meta) = self.meta.take() {
+                    return if let Some(meta) = self.meta.take() {
                         self.cache = Some(Element::Trace(trace));
-                        return Ok(Some(Element::Meta(meta)));
+                        Ok(Some(Element::Meta(meta)))
                     } else {
-                        return Ok(Some(Element::Trace(trace)));
+                        Ok(Some(Element::Trace(trace)))
                     }
                 }
                 XesElement::Event(event) => {
-                    if let Some(meta) = self.meta.take() {
+                    return if let Some(meta) = self.meta.take() {
                         self.cache = Some(Element::Event(event));
-                        return Ok(Some(Element::Meta(meta)));
+                        Ok(Some(Element::Meta(meta)))
                     } else {
-                        return Ok(Some(Element::Event(event)));
+                        Ok(Some(Element::Event(event)))
                     }
                 }
                 XesElement::Log(_) => {
@@ -653,7 +644,6 @@ impl<T: io::BufRead + Send> Stream for XesReader<T> {
 /// XML serialization of XES
 pub struct XesWriter<W: io::Write> {
     writer: QxWriter<W>,
-    bytes_written: usize,
 }
 
 impl<W: io::Write> XesWriter<W> {
@@ -666,7 +656,6 @@ impl<W: io::Write> XesWriter<W> {
 
         XesWriter {
             writer,
-            bytes_written: 0,
         }
     }
 }
@@ -675,15 +664,11 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
     fn on_open(&mut self) -> Result<()> {
         // XML declaration
         let declaration = QxBytesDecl::new(b"1.0", Some(b"UTF-8"), None);
-        self.bytes_written += self.writer.write_event(QxEvent::Decl(declaration))?;
+        self.writer.write_event(QxEvent::Decl(declaration))?;
 
         // write comments
-        self.bytes_written += [
-            format!(
-                " This file has been generated with promi {} ",
-                crate::VERSION
-            )
-            .as_str(),
+        [
+            &format!(" This file has been generated by promi {} ", crate::VERSION),
             " It conforms to the XML serialization of the XES standard (IEEE Std 1849-2016) ",
             " For log storage and management, see http://www.xes-standard.org. ",
             " promi is available at https://crates.io/crates/promi ",
@@ -693,7 +678,7 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
             self.writer
                 .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
         })
-        .fold(Ok(0), |s: Result<usize>, v| Ok(s? + v?))?;
+        .collect::<QxResult<()>>()?;
 
         // write contents
         let tag = b"log";
@@ -702,13 +687,13 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
         event.push_attribute(("xes.version", "1849.2016"));
         event.push_attribute(("xes.features", ""));
 
-        self.bytes_written += self.writer.write_event(QxEvent::Start(event))?;
+        self.writer.write_event(QxEvent::Start(event))?;
 
         Ok(())
     }
 
     fn on_element(&mut self, element: Element) -> Result<()> {
-        self.bytes_written += match element {
+        match element {
             Element::Meta(meta) => meta.write_xes(&mut self.writer)?,
             Element::Trace(trace) => trace.write_xes(&mut self.writer)?,
             Element::Event(event) => event.write_xes(&mut self.writer)?,
@@ -720,8 +705,8 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
     fn on_close(&mut self) -> Result<()> {
         let event = QxEvent::End(QxBytesEnd::borrowed(b"log"));
 
-        self.bytes_written += self.writer.write_event(event)?;
-        self.bytes_written += self.writer.write_event(QxEvent::Eof)?;
+        self.writer.write_event(event)?;
+        self.writer.write_event(QxEvent::Eof)?;
 
         Ok(())
     }

@@ -29,7 +29,9 @@ pub mod time;
 
 /// Helper struct that holds references to object safe parts of an extension
 pub struct RegistryEntry {
-    key: &'static str,
+    pub name: &'static str,
+    pub prefix: &'static str,
+    pub uri: &'static str,
     _declare: Box<dyn Fn() -> ExtensionDecl + Send>,
     _validator: Box<dyn Fn(&Meta) -> ValidatorFn + Send>,
 }
@@ -49,7 +51,7 @@ impl RegistryEntry {
 impl fmt::Debug for RegistryEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RegistryEntry")
-            .field("key", &self.key)
+            .field("key", &self.prefix)
             .finish()
     }
 }
@@ -63,12 +65,17 @@ pub struct Registry {
 impl Registry {
     /// Register an extension in registry
     pub fn register(&mut self, entry: RegistryEntry) {
-        self.extensions.insert(entry.key.to_string(), entry);
+        self.extensions.insert(entry.prefix.to_string(), entry);
     }
 
     /// Get an extension by its prefix
     pub fn get(&self, key: &str) -> Option<&RegistryEntry> {
         self.extensions.get(key)
+    }
+
+    /// Get an iterator over the registry entries
+    pub fn entries(&self) -> impl Iterator<Item = &RegistryEntry> {
+        self.extensions.values()
     }
 
     /// Remove extension from registry and return it
@@ -77,30 +84,34 @@ impl Registry {
     }
 }
 
-impl Registry {
-    /// Create a new, empty registry
-    pub fn new() -> Self {
+impl Default for Registry {
+    fn default() -> Self {
         Self {
             extensions: HashMap::new(),
         }
     }
 }
 
-impl Default for Registry {
-    fn default() -> Self {
-        let mut registry = Self::new();
-
-        registry.register(Concept::registry_entry());
-        registry.register(Org::registry_entry());
-        registry.register(Time::registry_entry());
-
-        registry
+impl<I: IntoIterator<Item = RegistryEntry>> From<I> for Registry {
+    fn from(entries: I) -> Self {
+        Registry {
+            extensions: entries
+                .into_iter()
+                .map(|e| (e.prefix.to_string(), e))
+                .collect(),
+        }
     }
 }
 
 lazy_static! {
     /// The default extension registry
-    pub static ref REGISTRY: Mutex<Registry> = Mutex::new(Registry::default());
+    pub static ref REGISTRY: Mutex<Registry> = {
+        Mutex::new(Registry::from(vec![
+            Concept::registry_entry(),
+            Org::registry_entry(),
+            Time::registry_entry(),
+        ]))
+    };
 }
 
 /// Enrich an event stream with semantics
@@ -138,7 +149,9 @@ pub trait Extension<'a> {
         Self: 'static,
     {
         RegistryEntry {
-            key: Self::PREFIX,
+            name: Self::NAME,
+            prefix: Self::PREFIX,
+            uri: Self::URI,
             _declare: Box::new(Self::declare),
             _validator: Box::new(Self::validator),
         }

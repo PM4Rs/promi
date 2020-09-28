@@ -6,7 +6,7 @@ use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 use std::mem;
 use std::sync::mpsc::{
-    channel as async_channel, Receiver, Sender as AsyncSender, sync_channel, SyncSender,
+    channel as async_channel, sync_channel, Receiver, Sender as AsyncSender, SyncSender,
 };
 
 use crate::error::{Error, Result};
@@ -285,19 +285,19 @@ mod tests {
     use std::thread;
 
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::{Artifact, consume, duplicator::Duplicator, xes::XesReader};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
+    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
 
     use super::*;
 
     /// Sets up the following scenario:
-        ///
-        /// The main thread parses a XES file and computes some statistics based on the event stream.
-        /// While doing that, the stream is duplicated twice and sent to two helper threads that do
-        /// nothing but sending the stream back to the main thread. Then, the main thread also computes
-        /// statistics of those duplicated streams and compares them to the original one.
-        ///
+    ///
+    /// The main thread parses a XES file and computes some statistics based on the event stream.
+    /// While doing that, the stream is duplicated twice and sent to two helper threads that do
+    /// nothing but sending the stream back to the main thread. Then, the main thread also computes
+    /// statistics of those duplicated streams and compares them to the original one.
+    ///
     fn _test_channel(path: PathBuf, expect_error: bool) {
         // channels from main thread to helper threads
         let (s_t0_t1, mut r_t0_t1) = stream_channel(None);

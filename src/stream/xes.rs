@@ -55,7 +55,7 @@ use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
-use quick_xml::{Result as QxResult, Reader as QxReader, Writer as QxWriter};
+use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
 
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
@@ -654,9 +654,7 @@ impl<W: io::Write> XesWriter<W> {
             indent_size.unwrap_or(1),
         );
 
-        XesWriter {
-            writer,
-        }
+        XesWriter { writer }
     }
 }
 

@@ -467,6 +467,14 @@ impl Attributes for Element {
     }
 }
 
+// TODO: Once `ops::Try` lands in stable, replace ResOpt by something like:
+// ```Rust
+// enum ResOpt {
+//     Element(Element),
+//     Error(Error),
+//     None
+// }
+// ```
 /// Container for stream elements that can express the empty element as well as errors
 pub type ResOpt = Result<Option<Element>>;
 

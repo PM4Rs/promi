@@ -41,7 +41,7 @@ impl Handler for Validator {
             if let Some(entry) = registry.get(extension_decl.prefix.as_str()) {
                 self.validators.push(entry.validator(&meta));
             } else {
-                eprintln!(
+                warn!(
                     "{:?} extension is not supported and therefore not validated",
                     extension_decl.name
                 )

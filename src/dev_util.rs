@@ -1,15 +1,31 @@
 //! Useful functions for developing promi that may panic.
 //!
 
+extern crate simple_logger;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, Once};
+
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 
 use crate::stream::buffer::Buffer;
 use crate::stream::xes::XesReader;
 use crate::stream::StreamSink;
+
+static LOGGER: Once = Once::new();
+
+pub fn logging() {
+    LOGGER.call_once(|| {
+        SimpleLogger::new()
+            .with_level(LevelFilter::Debug)
+            .init()
+            .unwrap()
+    });
+}
 
 /// Access assets
 ///
@@ -142,8 +158,10 @@ pub fn load_example(path: &[&str]) -> Buffer {
         let mut buffer = Buffer::default();
 
         if buffer.consume(&mut reader).is_err() {
-            eprintln!("an error occurred while loading: {:?}", &root);
-            eprintln!("this, however, may be intended");
+            warn!(
+                "an error occurred while loading: {:?} - this, however, may be intended",
+                &root
+            );
         }
 
         cache.insert(key.to_string(), buffer);
@@ -155,6 +173,12 @@ pub fn load_example(path: &[&str]) -> Buffer {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+
+    #[test]
+    fn test_logging() {
+        logging();
+        info!("logging enabled!");
+    }
 
     #[test]
     fn test_is_close() {

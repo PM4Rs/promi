@@ -61,7 +61,7 @@ fn example_2() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/xes/book/L1.xes");
     let file = BufReader::new(File::open(&path).unwrap());
 
-    print!("read {:?} to log and count elements: ", &path);
+    print!("read {:?} to log and count components: ", &path);
     let mut log = Log::default();
     let mut reader = xes::XesReader::from(file);
     log.consume(&mut reader).unwrap();

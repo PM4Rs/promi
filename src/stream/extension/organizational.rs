@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ElementType, Meta};
+use crate::stream::{ComponentType, Meta};
 
 #[derive(Debug)]
 pub enum OrgKey {
@@ -18,7 +18,7 @@ pub struct Org<'a> {
     pub resource: Option<&'a str>,
     pub role: Option<&'a str>,
     pub group: Option<&'a str>,
-    origin: ElementType,
+    origin: ComponentType,
 }
 
 impl<'a> Extension<'a> for Org<'a> {
@@ -35,7 +35,7 @@ impl<'a> Extension<'a> for Org<'a> {
         };
 
         // only events are supported
-        if ElementType::Event == org.origin {
+        if ComponentType::Event == org.origin {
             // extract resource
             if let Some(name) = component.get("org:resource") {
                 org.resource = Some(name.try_string()?)
@@ -114,7 +114,7 @@ pub mod tests {
     use crate::dev_util::load_example;
     use crate::stream::filter::drop_err;
     use crate::stream::filter::tests::test_filter;
-    use crate::stream::{Element, Stream};
+    use crate::stream::{Component, Stream};
 
     use super::*;
 
@@ -122,15 +122,15 @@ pub mod tests {
     fn test_view() {
         let mut buffer = load_example(&["correct", "event_correct_attributes.xes"]);
 
-        while let Some(element) = buffer.next().unwrap() {
-            match element {
-                Element::Trace(trace) => {
+        while let Some(component) = buffer.next().unwrap() {
+            match component {
+                Component::Trace(trace) => {
                     let view = Org::view(&trace).unwrap();
                     assert!(view.resource.is_none());
                     assert!(view.role.is_none());
                     assert!(view.group.is_none());
                 }
-                Element::Event(_event) => (),
+                Component::Event(_event) => (),
                 _ => (),
             }
         }
@@ -154,8 +154,8 @@ pub mod tests {
                 ],
             ],
             "[BC][D][][][][]",
-            Some(Box::new(|element: &dyn Attributes| {
-                Ok(Org::view(element)
+            Some(Box::new(|component: &dyn Attributes| {
+                Ok(Org::view(component)
                     .unwrap()
                     .resource
                     .unwrap_or("?")
@@ -180,8 +180,8 @@ pub mod tests {
                 ))],
             ],
             "[][23][][][][]",
-            Some(Box::new(|element: &dyn Attributes| {
-                Ok(Org::view(element).unwrap().role.unwrap_or("?").to_string())
+            Some(Box::new(|component: &dyn Attributes| {
+                Ok(Org::view(component).unwrap().role.unwrap_or("?").to_string())
             })),
         );
     }

@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ElementType, Meta};
+use crate::stream::{ComponentType, Meta};
 
 #[derive(Debug)]
 pub enum ConceptKey {
@@ -16,7 +16,7 @@ pub enum ConceptKey {
 pub struct Concept<'a> {
     pub name: Option<&'a str>,
     pub instance: Option<&'a str>,
-    origin: ElementType,
+    origin: ComponentType,
 }
 
 impl<'a> Extension<'a> for Concept<'a> {
@@ -37,7 +37,7 @@ impl<'a> Extension<'a> for Concept<'a> {
         }
 
         // extract instance
-        if ElementType::Event == concept.origin {
+        if ComponentType::Event == concept.origin {
             if let Some(instance) = component.get("concept:instance") {
                 concept.instance = Some(instance.try_string()?)
             }
@@ -107,7 +107,7 @@ pub mod tests {
 
     use crate::dev_util::load_example;
     use crate::stream::filter::tests::test_filter;
-    use crate::stream::{Element, Stream};
+    use crate::stream::{Component, Stream};
 
     use super::*;
 
@@ -115,10 +115,10 @@ pub mod tests {
     fn test_view() {
         let mut buffer = load_example(&["correct", "event_correct_attributes.xes"]);
 
-        while let Some(element) = buffer.next().unwrap() {
-            match element {
-                Element::Trace(trace) => assert!(Concept::view(&trace).unwrap().name.is_none()),
-                Element::Event(event) => assert!(Concept::view(&event).unwrap().name.is_some()),
+        while let Some(component) = buffer.next().unwrap() {
+            match component {
+                Component::Trace(trace) => assert!(Concept::view(&trace).unwrap().name.is_none()),
+                Component::Event(event) => assert!(Concept::view(&event).unwrap().name.is_some()),
                 _ => (),
             }
         }

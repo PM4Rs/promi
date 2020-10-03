@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::error::{Error, Result};
-use crate::stream::{Element, ResOpt, Stream, StreamSink};
+use crate::stream::{Component, ResOpt, Stream, StreamSink};
 
 /// Consumes a stream and stores it in memory for further processing.
 ///
@@ -37,15 +37,15 @@ impl Stream for Buffer {
 
     fn next(&mut self) -> ResOpt {
         match self.buffer.pop_front() {
-            Some(element) => element,
+            Some(component) => component,
             None => Ok(None),
         }
     }
 }
 
 impl StreamSink for Buffer {
-    fn on_element(&mut self, element: Element) -> Result<()> {
-        self.buffer.push_back(Ok(Some(element)));
+    fn on_component(&mut self, component: Component) -> Result<()> {
+        self.buffer.push_back(Ok(Some(component)));
         Ok(())
     }
 
@@ -64,8 +64,8 @@ impl Buffer {
         self.buffer.is_empty()
     }
 
-    pub fn push(&mut self, element: ResOpt) {
-        self.buffer.push_back(element)
+    pub fn push(&mut self, component: ResOpt) {
+        self.buffer.push_back(component)
     }
 }
 
@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(buffer_b.len(), 7);
 
         let event = stream::Event::default();
-        buffer_a.push(Ok(Some(stream::Element::Event(event))));
+        buffer_a.push(Ok(Some(stream::Component::Event(event))));
 
         assert_eq!(buffer_a.len(), 1);
         assert_eq!(buffer_b.len(), 7);

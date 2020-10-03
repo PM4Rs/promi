@@ -1,14 +1,14 @@
-//! A stateful observer that allows for registering callbacks to handle stream elements
+//! A stateful observer that allows for registering callbacks to handle stream components
 
 use crate::error::{Error, Result};
-use crate::stream::{Artifact, Element, ElementType, Event, Meta, ResOpt, Stream, Trace};
+use crate::stream::{Artifact, Component, ComponentType, Event, Meta, ResOpt, Stream, Trace};
 
 /// Gets registered with an observer while providing callbacks
 ///
 /// All callback functions are optional. The `meta` callback is revoked once a transition from meta
 /// data to payload is passed. `trace` is revoked on all traces, `event` on all events regardless of
 /// whether or not it's part of a trace. Payload callbacks may also act as a filter and not return
-/// the element.
+/// the component.
 ///
 pub trait Handler: Send {
     /// Handle stream meta data
@@ -29,7 +29,7 @@ pub trait Handler: Send {
 
     /// Handle an event
     ///
-    /// Invoked on each event in stream. Whether the element is part of a trace is indicated by
+    /// Invoked on each event in stream. Whether the component is part of a trace is indicated by
     /// `in_trace`.
     ///
     fn on_event(&mut self, event: Event, _in_trace: bool) -> Result<Option<Event>> {
@@ -56,14 +56,14 @@ pub trait Handler: Send {
 
 /// Observes a stream and revokes registered callbacks
 ///
-/// An observer preserves a state with copies of meta data elements. It manages an arbitrary number
-/// of registered handlers and invokes their callbacks. Further, it checks if elements of the stream
-/// occur in a valid order.
+/// An observer preserves a state with copies of meta data components. It manages an arbitrary
+/// number of registered handlers and invokes their callbacks. Further, it checks if components of
+/// the stream occur in a valid order.
 ///
 #[derive(Debug, Clone)]
 pub struct Observer<I: Stream, H: Handler> {
     stream: I,
-    state: ElementType,
+    state: ComponentType,
     handler: Vec<H>,
 }
 
@@ -72,7 +72,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
     pub fn new(stream: I) -> Self {
         Observer {
             stream,
-            state: ElementType::Meta,
+            state: ComponentType::Meta,
             handler: Vec::new(),
         }
     }
@@ -87,7 +87,7 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         self.handler.pop()
     }
 
-    fn update_state(&mut self, state: ElementType) -> Result<()> {
+    fn update_state(&mut self, state: ComponentType) -> Result<()> {
         if self.state > state {
             Err(Error::StateError(format!(
                 "invalid transition: {:?} --> {:?}",
@@ -99,11 +99,11 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
         }
     }
 
-    fn on_element(&mut self, element: Element) -> ResOpt {
-        let element = match element {
-            Element::Meta(meta) => {
-                // Since there's only one meta element allowed, we can directly jump to trace state
-                self.update_state(ElementType::Trace)?;
+    fn on_component(&mut self, component: Component) -> ResOpt {
+        let component_ = match component {
+            Component::Meta(meta) => {
+                // Since there's only one meta component allowed, we can directly jump to trace state
+                self.update_state(ComponentType::Trace)?;
 
                 // call all the handlers
                 let mut meta = meta;
@@ -111,10 +111,10 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                     meta = handler.on_meta(meta)?;
                 }
 
-                Element::Meta(meta)
+                Component::Meta(meta)
             }
-            Element::Trace(trace) => {
-                self.update_state(ElementType::Trace)?;
+            Component::Trace(trace) => {
+                self.update_state(ComponentType::Trace)?;
 
                 // apply all handlers on trace
                 let mut trace = trace;
@@ -143,10 +143,10 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                 }
 
                 trace.events = events;
-                Element::Trace(trace)
+                Component::Trace(trace)
             }
-            Element::Event(event) => {
-                self.update_state(ElementType::Event)?;
+            Component::Event(event) => {
+                self.update_state(ComponentType::Event)?;
 
                 // apply all handlers on the event
                 let mut event = event;
@@ -157,11 +157,11 @@ impl<'a, I: Stream, H: Handler> Observer<I, H> {
                     };
                 }
 
-                Element::Event(event)
+                Component::Event(event)
             }
         };
 
-        Ok(Some(element))
+        Ok(Some(component_))
     }
 }
 
@@ -199,9 +199,9 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
     }
 
     fn next(&mut self) -> ResOpt {
-        while let Some(element) = self.stream.next()? {
-            if let Some(element) = self.on_element(element)? {
-                return Ok(Some(element));
+        while let Some(component) = self.stream.next()? {
+            if let Some(component_) = self.on_component(component)? {
+                return Ok(Some(component_));
             }
         }
 

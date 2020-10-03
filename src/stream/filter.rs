@@ -115,7 +115,7 @@ pub fn from_cnf<'a, T: Stream>(
 #[cfg(test)]
 pub mod tests {
     use crate::stream::buffer::Buffer;
-    use crate::stream::Element;
+    use crate::stream::Component;
     use crate::stream::StreamSink;
 
     use super::*;
@@ -143,8 +143,8 @@ pub mod tests {
     impl Default for Sequencer {
         /// The default Sequencer uses the `concept:name` attribute as token
         fn default() -> Self {
-            Self::new(Box::new(|element| {
-                Ok(match element.get("concept:name") {
+            Self::new(Box::new(|component| {
+                Ok(match component.get("concept:name") {
                     Some(name) => name.try_string()?,
                     None => "?",
                 }
@@ -154,16 +154,16 @@ pub mod tests {
     }
 
     impl StreamSink for Sequencer {
-        fn on_element(&mut self, element: Element) -> Result<()> {
-            match element {
-                Element::Trace(trace) => {
+        fn on_component(&mut self, component: Component) -> Result<()> {
+            match component {
+                Component::Trace(trace) => {
                     self.tokens.push(String::from("["));
                     for event in trace.events.iter() {
                         self.tokens.push((self.token_mapper)(event)?)
                     }
                     self.tokens.push(String::from("]"));
                 }
-                Element::Event(event) => self.tokens.push((self.token_mapper)(&event)?),
+                Component::Event(event) => self.tokens.push((self.token_mapper)(&event)?),
                 _ => (),
             }
 

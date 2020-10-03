@@ -61,13 +61,13 @@ use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
 use crate::stream::{
-    Attribute, AttributeValue, ClassifierDecl, Element, Event, ExtensionDecl, Global, Log, Meta,
+    Attribute, AttributeValue, ClassifierDecl, Component, Event, ExtensionDecl, Global, Log, Meta,
     ResOpt, Scope, Stream, StreamSink, Trace,
 };
 use crate::{DateTime, Error, Result};
 
 #[derive(Debug)]
-enum XesElement {
+enum XesComponent {
     Attribute(Attribute),
     Value(XesValue),
     ExtensionDecl(ExtensionDecl),
@@ -100,8 +100,8 @@ impl TryFrom<XesIntermediate> for Attribute {
             "list" => {
                 let mut attributes: Vec<Attribute> = Vec::new();
 
-                for element in intermediate.elements {
-                    if let XesElement::Value(value) = element {
+                for component in intermediate.components {
+                    if let XesComponent::Value(value) = component {
                         attributes.extend(value.attributes);
                     }
                 }
@@ -180,10 +180,10 @@ impl TryFrom<XesIntermediate> for XesValue {
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
         let mut attributes: Vec<Attribute> = Vec::new();
 
-        for element in intermediate.elements {
-            match element {
-                XesElement::Attribute(attribute) => attributes.push(attribute),
-                other => warn!("unexpected child element of value: {:?}, ignore", other),
+        for component in intermediate.components {
+            match component {
+                XesComponent::Attribute(attribute) => attributes.push(attribute),
+                other => warn!("unexpected child component of value: {:?}, ignore", other),
             }
         }
 
@@ -223,10 +223,10 @@ impl TryFrom<XesIntermediate> for Global {
         let scope = Scope::try_from(intermediate.attributes.get("scope").cloned())?;
         let mut attributes: Vec<Attribute> = Vec::new();
 
-        for element in intermediate.elements {
-            match element {
-                XesElement::Attribute(attribute) => attributes.push(attribute),
-                other => warn!("unexpected child element of global: {:?}, ignore", other),
+        for component in intermediate.components {
+            match component {
+                XesComponent::Attribute(attribute) => attributes.push(attribute),
+                other => warn!("unexpected child component of global: {:?}, ignore", other),
             }
         }
 
@@ -312,12 +312,12 @@ impl TryFrom<XesIntermediate> for Event {
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
         let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
 
-        for element in intermediate.elements {
-            match element {
-                XesElement::Attribute(attribute) => {
+        for component in intermediate.components {
+            match component {
+                XesComponent::Attribute(attribute) => {
                     attributes.insert(attribute.key, attribute.value);
                 }
-                other => warn!("unexpected child element of event: {:?}, ignore", other),
+                other => warn!("unexpected child component of event: {:?}, ignore", other),
             }
         }
 
@@ -348,13 +348,13 @@ impl TryFrom<XesIntermediate> for Trace {
         let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
         let mut traces: Vec<Event> = Vec::new();
 
-        for element in intermediate.elements {
-            match element {
-                XesElement::Attribute(attribute) => {
+        for component in intermediate.components {
+            match component {
+                XesComponent::Attribute(attribute) => {
                     attributes.insert(attribute.key, attribute.value);
                 }
-                XesElement::Event(event) => traces.push(event),
-                other => warn!("unexpected child element of trace: {:?}, ignore", other),
+                XesComponent::Event(event) => traces.push(event),
+                other => warn!("unexpected child component of trace: {:?}, ignore", other),
             }
         }
 
@@ -397,17 +397,17 @@ impl TryFrom<XesIntermediate> for Log {
         let mut traces: Vec<Trace> = Vec::new();
         let mut events: Vec<Event> = Vec::new();
 
-        for element in intermediate.elements {
-            match element {
-                XesElement::ExtensionDecl(extension) => meta.extensions.push(extension),
-                XesElement::Global(global) => meta.globals.push(global),
-                XesElement::ClassifierDecl(classifier) => meta.classifiers.push(classifier),
-                XesElement::Attribute(attribute) => {
+        for component in intermediate.components {
+            match component {
+                XesComponent::ExtensionDecl(extension) => meta.extensions.push(extension),
+                XesComponent::Global(global) => meta.globals.push(global),
+                XesComponent::ClassifierDecl(classifier) => meta.classifiers.push(classifier),
+                XesComponent::Attribute(attribute) => {
                     meta.attributes.insert(attribute.key, attribute.value);
                 }
-                XesElement::Trace(trace) => traces.push(trace),
-                XesElement::Event(event) => events.push(event),
-                other => warn!("unexpected child element of log: {:?}, ignore", other),
+                XesComponent::Trace(trace) => traces.push(trace),
+                XesComponent::Event(event) => events.push(event),
+                other => warn!("unexpected child component of log: {:?}, ignore", other),
             }
         }
 
@@ -419,27 +419,27 @@ impl TryFrom<XesIntermediate> for Log {
     }
 }
 
-impl TryFrom<XesIntermediate> for XesElement {
+impl TryFrom<XesIntermediate> for XesComponent {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
         match intermediate.type_name.as_str() {
             "string" | "date" | "int" | "float" | "boolean" | "id" | "list" => {
-                Ok(XesElement::Attribute(Attribute::try_from(intermediate)?))
+                Ok(XesComponent::Attribute(Attribute::try_from(intermediate)?))
             }
-            "values" => Ok(XesElement::Value(XesValue::try_from(intermediate)?)),
-            "extension" => Ok(XesElement::ExtensionDecl(ExtensionDecl::try_from(
+            "values" => Ok(XesComponent::Value(XesValue::try_from(intermediate)?)),
+            "extension" => Ok(XesComponent::ExtensionDecl(ExtensionDecl::try_from(
                 intermediate,
             )?)),
-            "global" => Ok(XesElement::Global(Global::try_from(intermediate)?)),
-            "classifier" => Ok(XesElement::ClassifierDecl(ClassifierDecl::try_from(
+            "global" => Ok(XesComponent::Global(Global::try_from(intermediate)?)),
+            "classifier" => Ok(XesComponent::ClassifierDecl(ClassifierDecl::try_from(
                 intermediate,
             )?)),
-            "event" => Ok(XesElement::Event(Event::try_from(intermediate)?)),
-            "trace" => Ok(XesElement::Trace(Trace::try_from(intermediate)?)),
-            "log" => Ok(XesElement::Log(Log::try_from(intermediate)?)),
+            "event" => Ok(XesComponent::Event(Event::try_from(intermediate)?)),
+            "trace" => Ok(XesComponent::Trace(Trace::try_from(intermediate)?)),
+            "log" => Ok(XesComponent::Log(Log::try_from(intermediate)?)),
             other => Err(Error::XesError(format!(
-                "unexpected XES element: {:?}",
+                "unexpected XES component: {:?}",
                 other
             ))),
         }
@@ -450,7 +450,7 @@ impl TryFrom<XesIntermediate> for XesElement {
 struct XesIntermediate {
     type_name: String,
     attributes: HashMap<String, String>,
-    elements: Vec<XesElement>,
+    components: Vec<XesComponent>,
 }
 
 impl XesIntermediate {
@@ -468,7 +468,7 @@ impl XesIntermediate {
         Ok(XesIntermediate {
             type_name: String::from_utf8(event.name().to_vec())?,
             attributes: attr,
-            elements: Vec::new(),
+            components: Vec::new(),
         })
     }
 
@@ -481,8 +481,8 @@ impl XesIntermediate {
         })?)
     }
 
-    fn add_element(&mut self, element: XesElement) {
-        self.elements.push(element)
+    fn add_component(&mut self, component: XesComponent) {
+        self.components.push(component)
     }
 }
 
@@ -491,7 +491,7 @@ pub struct XesReader<R: io::BufRead> {
     reader: QxReader<R>,
     buffer: Vec<u8>,
     stack: Vec<XesIntermediate>,
-    cache: Option<Element>,
+    cache: Option<Component>,
     meta: Option<Meta>,
     empty: bool,
 }
@@ -517,66 +517,66 @@ impl<R: io::BufRead> From<R> for XesReader<R> {
 
 impl<R: io::BufRead> XesReader<R> {
     fn update(&mut self, intermediate: XesIntermediate) -> ResOpt {
-        let element = XesElement::try_from(intermediate)?;
+        let component = XesComponent::try_from(intermediate)?;
 
         if self.stack.len() <= 1 {
-            match element {
-                XesElement::ExtensionDecl(extension) => {
+            match component {
+                XesComponent::ExtensionDecl(extension) => {
                     if let Some(meta) = &mut self.meta {
                         meta.extensions.push(extension);
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", extension)));
                     }
                 }
-                XesElement::Global(global) => {
+                XesComponent::Global(global) => {
                     if let Some(meta) = &mut self.meta {
                         meta.globals.push(global);
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", global)));
                     }
                 }
-                XesElement::ClassifierDecl(classifier) => {
+                XesComponent::ClassifierDecl(classifier) => {
                     if let Some(meta) = &mut self.meta {
                         meta.classifiers.push(classifier)
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", classifier)));
                     }
                 }
-                XesElement::Attribute(attribute) => {
+                XesComponent::Attribute(attribute) => {
                     if let Some(meta) = &mut self.meta {
                         meta.attributes.insert(attribute.key, attribute.value);
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", attribute)));
                     }
                 }
-                XesElement::Value(value) => {
+                XesComponent::Value(value) => {
                     return Err(Error::StateError(format!("unexpected: {:?}", value)))
                 }
-                XesElement::Trace(trace) => {
+                XesComponent::Trace(trace) => {
                     return if let Some(meta) = self.meta.take() {
-                        self.cache = Some(Element::Trace(trace));
-                        Ok(Some(Element::Meta(meta)))
+                        self.cache = Some(Component::Trace(trace));
+                        Ok(Some(Component::Meta(meta)))
                     } else {
-                        Ok(Some(Element::Trace(trace)))
+                        Ok(Some(Component::Trace(trace)))
                     }
                 }
-                XesElement::Event(event) => {
+                XesComponent::Event(event) => {
                     return if let Some(meta) = self.meta.take() {
-                        self.cache = Some(Element::Event(event));
-                        Ok(Some(Element::Meta(meta)))
+                        self.cache = Some(Component::Event(event));
+                        Ok(Some(Component::Meta(meta)))
                     } else {
-                        Ok(Some(Element::Event(event)))
+                        Ok(Some(Component::Event(event)))
                     }
                 }
-                XesElement::Log(_) => {
+                XesComponent::Log(_) => {
                     self.empty = false;
                     if let Some(meta) = self.meta.take() {
-                        return Ok(Some(Element::Meta(meta)));
+                        return Ok(Some(Component::Meta(meta)));
                     }
                 }
             }
         } else if let Some(intermediate) = self.stack.last_mut() {
-            intermediate.add_element(element);
+            intermediate.add_component(component);
         }
 
         Ok(None)
@@ -596,8 +596,8 @@ impl<T: io::BufRead + Send> Stream for XesReader<T> {
         // At the transition of the meta data fields to actual stream data the first trace/event
         // will be cached and emitted in the next iteration. This is supposed to happen once per
         // stream at max.
-        if let Some(element) = self.cache.take() {
-            return Ok(Some(element));
+        if let Some(component) = self.cache.take() {
+            return Ok(Some(component));
         }
 
         loop {
@@ -608,14 +608,14 @@ impl<T: io::BufRead + Send> Stream for XesReader<T> {
                 }
                 Ok(QxEvent::End(_event)) => {
                     let intermediate = self.stack.pop().unwrap();
-                    if let Some(element) = self.update(intermediate)? {
-                        return Ok(Some(element));
+                    if let Some(component) = self.update(intermediate)? {
+                        return Ok(Some(component));
                     }
                 }
                 Ok(QxEvent::Empty(event)) => {
                     let intermediate = XesIntermediate::from_event(event)?;
-                    if let Some(element) = self.update(intermediate)? {
-                        return Ok(Some(element));
+                    if let Some(component) = self.update(intermediate)? {
+                        return Ok(Some(component));
                     }
                 }
                 Err(error) => {
@@ -627,7 +627,7 @@ impl<T: io::BufRead + Send> Stream for XesReader<T> {
                 }
                 Ok(QxEvent::Eof) => {
                     if self.empty {
-                        return Err(Error::XesError(String::from("No root element found")));
+                        return Err(Error::XesError(String::from("No root component found")));
                     }
                     break;
                 }
@@ -690,11 +690,11 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
         Ok(())
     }
 
-    fn on_element(&mut self, element: Element) -> Result<()> {
-        match element {
-            Element::Meta(meta) => meta.write_xes(&mut self.writer)?,
-            Element::Trace(trace) => trace.write_xes(&mut self.writer)?,
-            Element::Event(event) => event.write_xes(&mut self.writer)?,
+    fn on_component(&mut self, component: Component) -> Result<()> {
+        match component {
+            Component::Meta(meta) => meta.write_xes(&mut self.writer)?,
+            Component::Trace(trace) => trace.write_xes(&mut self.writer)?,
+            Component::Event(event) => event.write_xes(&mut self.writer)?,
         };
 
         Ok(())

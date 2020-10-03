@@ -3,7 +3,7 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-use crate::stream::{Artifact, Element, ResOpt, Stream, StreamSink};
+use crate::stream::{Artifact, Component, ResOpt, Stream, StreamSink};
 use crate::Result;
 
 /// Train-Test split
@@ -53,18 +53,18 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
     fn next(&mut self) -> ResOpt {
         loop {
             match self.stream.next() {
-                Ok(Some(Element::Meta(meta))) => {
-                    let element = Element::Meta(meta);
+                Ok(Some(Component::Meta(meta))) => {
+                    let component = Component::Meta(meta);
                     self.test_sink.on_open()?;
-                    self.test_sink.on_element(element.clone())?;
-                    return Ok(Some(element));
+                    self.test_sink.on_component(component.clone())?;
+                    return Ok(Some(component));
                 }
-                Ok(Some(element)) => {
+                Ok(Some(component)) => {
                     let coin: f64 = self.rng.sample(Open01);
                     if coin > self.train_ratio {
-                        self.test_sink.on_element(element.clone())?;
+                        self.test_sink.on_component(component.clone())?;
                     } else {
-                        return Ok(Some(element));
+                        return Ok(Some(component));
                     }
                 }
                 Ok(None) => {

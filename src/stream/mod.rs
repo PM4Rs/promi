@@ -196,9 +196,9 @@ pub struct Global {
 
 impl Global {
     /// Validate any item that implements the `Attributes` trait without considering its scope
-    pub fn validate(&self, element: &dyn Attributes) -> Result<()> {
+    pub fn validate(&self, component: &dyn Attributes) -> Result<()> {
         for attribute in self.attributes.iter() {
-            if let Some(other) = element.get(&attribute.key) {
+            if let Some(other) = component.get(&attribute.key) {
                 if attribute.hint() != other.hint() {
                     return Err(Error::ValidationError(format!(
                         "Expected \"{:?}\" to be of type {:?} but got {:?} instead",
@@ -322,14 +322,14 @@ impl Into<buffer::Buffer> for Log {
     fn into(self) -> buffer::Buffer {
         let mut buffer = buffer::Buffer::default();
 
-        buffer.push(Ok(Some(Element::Meta(self.meta))));
+        buffer.push(Ok(Some(Component::Meta(self.meta))));
 
         for trace in self.traces {
-            buffer.push(Ok(Some(Element::Trace(trace))));
+            buffer.push(Ok(Some(Component::Trace(trace))));
         }
 
         for event in self.events {
-            buffer.push(Ok(Some(Element::Event(event))));
+            buffer.push(Ok(Some(Component::Event(event))));
         }
 
         buffer
@@ -337,11 +337,11 @@ impl Into<buffer::Buffer> for Log {
 }
 
 impl StreamSink for Log {
-    fn on_element(&mut self, element: Element) -> Result<()> {
-        match element {
-            Element::Meta(meta) => self.meta = meta,
-            Element::Trace(trace) => self.traces.push(trace),
-            Element::Event(event) => self.events.push(event),
+    fn on_component(&mut self, component: Component) -> Result<()> {
+        match component {
+            Component::Meta(meta) => self.meta = meta,
+            Component::Trace(trace) => self.traces.push(trace),
+            Component::Event(event) => self.events.push(event),
         };
 
         Ok(())
@@ -350,7 +350,7 @@ impl StreamSink for Log {
 
 /// Atomic unit of an extensible event stream
 #[derive(Debug, Clone)]
-pub enum Element {
+pub enum Component {
     Meta(Meta),
     Trace(Trace),
     Event(Event),
@@ -358,13 +358,13 @@ pub enum Element {
 
 /// State of an extensible event stream
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum ElementType {
+pub enum ComponentType {
     Meta,
     Trace,
     Event,
 }
 
-/// Provide a unified way to access an element's attributes and those of potential child elements
+/// Provide a unified way to access an component's attributes and those of potential child components
 pub trait Attributes {
     /// Try to return an attribute by its key
     fn get(&self, key: &str) -> Option<&AttributeValue>;
@@ -383,7 +383,7 @@ pub trait Attributes {
     }
 
     /// Tell the caller what kind of object this view refers to
-    fn hint(&self) -> ElementType;
+    fn hint(&self) -> ComponentType;
 }
 
 impl Attributes for Meta {
@@ -391,8 +391,8 @@ impl Attributes for Meta {
         self.attributes.get(key)
     }
 
-    fn hint(&self) -> ElementType {
-        ElementType::Meta
+    fn hint(&self) -> ComponentType {
+        ComponentType::Meta
     }
 }
 
@@ -408,8 +408,8 @@ impl Attributes for Trace {
             .collect()
     }
 
-    fn hint(&self) -> ElementType {
-        ElementType::Trace
+    fn hint(&self) -> ComponentType {
+        ComponentType::Trace
     }
 }
 
@@ -418,8 +418,8 @@ impl Attributes for Event {
         self.attributes.get(key)
     }
 
-    fn hint(&self) -> ElementType {
-        ElementType::Event
+    fn hint(&self) -> ComponentType {
+        ComponentType::Event
     }
 }
 
@@ -436,33 +436,33 @@ impl Attributes for Log {
             .collect()
     }
 
-    fn hint(&self) -> ElementType {
-        ElementType::Meta
+    fn hint(&self) -> ComponentType {
+        ComponentType::Meta
     }
 }
 
-impl Attributes for Element {
+impl Attributes for Component {
     fn get(&self, key: &str) -> Option<&AttributeValue> {
         match self {
-            Element::Meta(meta) => meta.get(key),
-            Element::Trace(trace) => trace.get(key),
-            Element::Event(event) => event.get(key),
+            Component::Meta(meta) => meta.get(key),
+            Component::Trace(trace) => trace.get(key),
+            Component::Event(event) => event.get(key),
         }
     }
 
     fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
         match self {
-            Element::Meta(meta) => meta.children(),
-            Element::Trace(trace) => trace.children(),
-            Element::Event(event) => event.children(),
+            Component::Meta(meta) => meta.children(),
+            Component::Trace(trace) => trace.children(),
+            Component::Event(event) => event.children(),
         }
     }
 
-    fn hint(&self) -> ElementType {
+    fn hint(&self) -> ComponentType {
         match self {
-            Element::Meta(meta) => meta.hint(),
-            Element::Trace(trace) => trace.hint(),
-            Element::Event(event) => event.hint(),
+            Component::Meta(meta) => meta.hint(),
+            Component::Trace(trace) => trace.hint(),
+            Component::Event(event) => event.hint(),
         }
     }
 }
@@ -470,13 +470,13 @@ impl Attributes for Element {
 // TODO: Once `ops::Try` lands in stable, replace ResOpt by something like:
 // ```Rust
 // enum ResOpt {
-//     Element(Element),
+//     Component(Component),
 //     Error(Error),
 //     None
 // }
 // ```
-/// Container for stream elements that can express the empty element as well as errors
-pub type ResOpt = Result<Option<Element>>;
+/// Container for stream components that can express the empty components as well as errors
+pub type ResOpt = Result<Option<Component>>;
 
 /// Container for arbitrary artifacts a stream processing pipeline creates
 #[derive(Debug)]
@@ -520,7 +520,7 @@ impl Artifact {
 
 /// Extensible event stream
 ///
-/// Yields one stream element at a time. Usually, it either acts as a factory or forwards another
+/// Yields one stream component at a time. Usually, it either acts as a factory or forwards another
 /// stream. Errors are propagated to the caller.
 ///
 pub trait Stream: Send {
@@ -530,7 +530,7 @@ pub trait Stream: Send {
     /// Get a mutable reference to the inner stream if there is one
     fn get_inner_mut(&mut self) -> Option<&mut dyn Stream>;
 
-    /// Return the next stream element
+    /// Return the next stream component
     fn next(&mut self) -> ResOpt;
 
     /// Callback that releases artifacts of stream
@@ -583,8 +583,8 @@ pub trait StreamSink: Send {
         Ok(())
     }
 
-    /// Callback that is invoked on each stream element
-    fn on_element(&mut self, element: Element) -> Result<()>;
+    /// Callback that is invoked on each stream component
+    fn on_component(&mut self, component: Component) -> Result<()>;
 
     /// Optional callback that is invoked once the stream is closed
     fn on_close(&mut self) -> Result<()> {
@@ -605,7 +605,7 @@ pub trait StreamSink: Send {
         Ok(vec![])
     }
 
-    /// Invokes a stream as long as it provides new elements.
+    /// Invokes a stream as long as it provides new components.
     fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Artifact>> {
         // call pre-execution hook
         self.on_open()?;
@@ -613,7 +613,7 @@ pub trait StreamSink: Send {
         // consume stream
         loop {
             match stream.next() {
-                Ok(Some(element)) => self.on_element(element)?,
+                Ok(Some(component)) => self.on_component(component)?,
                 Ok(None) => break,
                 Err(error) => {
                     self.on_error(error.clone())?;
@@ -638,8 +638,8 @@ impl StreamSink for Box<dyn StreamSink> {
         self.as_mut().on_open()
     }
 
-    fn on_element(&mut self, element: Element) -> Result<()> {
-        self.as_mut().on_element(element)
+    fn on_component(&mut self, component: Component) -> Result<()> {
+        self.as_mut().on_component(component)
     }
 
     fn on_close(&mut self) -> Result<()> {
@@ -665,7 +665,7 @@ impl Default for Void {
 }
 
 impl StreamSink for Void {
-    fn on_element(&mut self, _: Element) -> Result<()> {
+    fn on_component(&mut self, _: Component) -> Result<()> {
         Ok(())
     }
 }
@@ -695,7 +695,7 @@ mod tests {
     #[derive(Debug)]
     pub struct TestSink {
         ct_open: usize,
-        ct_element: usize,
+        ct_component: usize,
         ct_close: usize,
         ct_error: usize,
     }
@@ -704,7 +704,7 @@ mod tests {
         fn default() -> Self {
             TestSink {
                 ct_open: 0,
-                ct_element: 0,
+                ct_component: 0,
                 ct_close: 0,
                 ct_error: 0,
             }
@@ -717,8 +717,8 @@ mod tests {
             Ok(())
         }
 
-        fn on_element(&mut self, _: Element) -> Result<()> {
-            self.ct_element += 1;
+        fn on_component(&mut self, _: Component) -> Result<()> {
+            self.ct_component += 1;
             Ok(())
         }
 
@@ -735,7 +735,12 @@ mod tests {
 
     impl TestSink {
         pub fn counts(&self) -> [usize; 4] {
-            [self.ct_open, self.ct_element, self.ct_close, self.ct_error]
+            [
+                self.ct_open,
+                self.ct_component,
+                self.ct_close,
+                self.ct_error,
+            ]
         }
     }
 }

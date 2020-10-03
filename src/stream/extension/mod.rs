@@ -131,7 +131,7 @@ pub trait Extension<'a> {
     where
         Self: Sized;
 
-    /// Generate an extension declaration for events stream's meta element
+    /// Generate an extension declaration for events stream's meta component
     fn declare() -> ExtensionDecl {
         ExtensionDecl {
             name: Self::NAME.to_string(),

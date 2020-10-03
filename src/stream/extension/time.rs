@@ -8,7 +8,7 @@ use crate::error::Result;
 use crate::stream::extension::{Attributes, Extension};
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ElementType, Meta};
+use crate::stream::{ComponentType, Meta};
 use crate::{DateTime, Error};
 
 #[derive(Debug)]
@@ -81,7 +81,7 @@ impl TimeType<'_> {
 #[derive(Debug)]
 pub struct Time<'a> {
     pub time: TimeType<'a>,
-    origin: ElementType,
+    origin: ComponentType,
 }
 
 impl<'a> Extension<'a> for Time<'a> {
@@ -92,10 +92,10 @@ impl<'a> Extension<'a> for Time<'a> {
     fn view<T: Attributes + ?Sized>(component: &'a T) -> Result<Self> {
         let origin = component.hint();
         let time = match origin {
-            ElementType::Event => {
+            ComponentType::Event => {
                 TimeType::Timestamp(component.get_or("time:timestamp")?.try_date()?)
             }
-            ElementType::Trace => match &component.children()[..] {
+            ComponentType::Trace => match &component.children()[..] {
                 [] => return Err(Error::ExtensionError("no interval found".to_string())),
                 [x] => {
                     let x = x.get_or("time:timestamp")?.try_date()?;
@@ -138,7 +138,7 @@ impl<'a> Extension<'a> for Time<'a> {
 
                         if ts2.is_before(&ts1) {
                             return Err(Error::ValidationError(format!(
-                                "at least two child elements of \"{:?}\" appear not to be in chronological order ({:?}, {:?})",
+                                "at least two child components of \"{:?}\" appear not to be in chronological order ({:?}, {:?})",
                                 x.hint(), ts1, ts2
                             )));
                         }
@@ -191,7 +191,7 @@ mod tests {
     use crate::stream::filter::tests::test_filter;
     use crate::stream::observer::Handler;
     use crate::stream::validator::Validator;
-    use crate::stream::{consume, Element, Stream};
+    use crate::stream::{consume, Component, Stream};
 
     use super::*;
 
@@ -199,11 +199,11 @@ mod tests {
     fn test_view() {
         let mut buffer = load_example(&["non_validating", "event_incorrect_order.xes"]);
 
-        while let Some(element) = buffer.next().unwrap() {
-            match element {
-                Element::Meta(meta) => assert!(Time::view(&meta).is_err()),
-                Element::Trace(trace) => assert!(Time::view(&trace).is_err()),
-                Element::Event(event) => assert!(Time::view(&event).is_ok()),
+        while let Some(component) = buffer.next().unwrap() {
+            match component {
+                Component::Meta(meta) => assert!(Time::view(&meta).is_err()),
+                Component::Trace(trace) => assert!(Time::view(&trace).is_err()),
+                Component::Event(event) => assert!(Time::view(&event).is_ok()),
             }
         }
     }
@@ -358,7 +358,7 @@ mod tests {
         let mut validator = Validator::default().into_observer(buffer);
 
         if let Err(Error::ValidationError(msg)) = consume(&mut validator) {
-            assert!(msg.contains(r#"at least two child elements of "Trace" appear not to be in chronological order (Timestamp(2000-01-01T00:00:00+00:00), Timestamp(1999-01-01T00:00:00+00:00))"#))
+            assert!(msg.contains(r#"at least two child components of "Trace" appear not to be in chronological order (Timestamp(2000-01-01T00:00:00+00:00), Timestamp(1999-01-01T00:00:00+00:00))"#))
         } else {
             panic!("expected validation error")
         }

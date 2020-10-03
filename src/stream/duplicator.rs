@@ -5,8 +5,8 @@ use crate::Result;
 
 /// Creates a copy of an extensible event stream on the fly
 ///
-/// A duplicator forwards a stream while copying each element (and errors) to forward them to the
-/// given stream sink.
+/// A duplicator forwards a stream while copying each component (inclusive errors) to forward them
+/// to the given stream sink.
 ///
 pub struct Duplicator<T: Stream, S: StreamSink> {
     stream: T,
@@ -46,9 +46,9 @@ impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
         }
 
         match self.stream.next() {
-            Ok(Some(element)) => {
-                self.sink.on_element(element.clone())?;
-                Ok(Some(element))
+            Ok(Some(component)) => {
+                self.sink.on_component(component.clone())?;
+                Ok(Some(component))
             }
             Ok(None) => {
                 self.sink.on_close()?;
@@ -95,7 +95,6 @@ mod tests {
     #[test]
     fn test_sink_duplicator() {
         let param = [
-            // open element close error
             ("book", "L1.xes", [1, 7, 1, 0]),
             ("book", "L2.xes", [1, 14, 1, 0]),
             ("book", "L3.xes", [1, 5, 1, 0]),

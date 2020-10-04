@@ -181,7 +181,11 @@ pub mod tests {
             ],
             "[][23][][][][]",
             Some(Box::new(|component: &dyn Attributes| {
-                Ok(Org::view(component).unwrap().role.unwrap_or("?").to_string())
+                Ok(Org::view(component)
+                    .unwrap()
+                    .role
+                    .unwrap_or("?")
+                    .to_string())
             })),
         );
     }

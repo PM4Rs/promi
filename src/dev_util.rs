@@ -1,4 +1,4 @@
-//! Useful functions for developing promi that may panic.
+//! Useful, potentially panicking functions for developing promi.
 //!
 
 extern crate simple_logger;
@@ -14,7 +14,8 @@ use simple_logger::SimpleLogger;
 
 use crate::stream::buffer::Buffer;
 use crate::stream::xes::XesReader;
-use crate::stream::StreamSink;
+use crate::stream::{Artifact, ResOpt, Stream, StreamSink};
+use crate::{Error, Result};
 
 static LOGGER: Once = Once::new();
 
@@ -46,6 +47,71 @@ pub fn expand_static(path: &[&str]) -> PathBuf {
 /// Open a file as `io::BufReader`
 pub fn open_buffered(path: &Path) -> io::BufReader<File> {
     io::BufReader::new(File::open(&path).unwrap_or_else(|_| panic!("No such file {:?}", &path)))
+}
+
+/// Stream that fails on purpose after any number of components or while emitting artifacts
+struct FailingStream<T: Stream> {
+    stream: T,
+    count: i64,
+    fails: i64,
+    panic: bool,
+}
+
+impl<T: Stream> FailingStream<T> {
+    /// Create a new failing stream
+    ///
+    /// If _fails_ is set to a non negative value the stream will turn into the error state after
+    /// this number of components returned or the very last one. In the case _fails_ is negative,
+    /// the stream succeeds but fails on emitting artifacts.
+    ///
+    pub fn new(stream: T, fails: i64, panic: bool) -> Self {
+        Self {
+            stream,
+            count: 0,
+            fails,
+            panic,
+        }
+    }
+}
+
+impl<T: Stream> Stream for FailingStream<T> {
+    fn get_inner(&self) -> Option<&dyn Stream> {
+        Some(&self.stream)
+    }
+
+    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        Some(&mut self.stream)
+    }
+
+    fn next(&mut self) -> ResOpt {
+        self.count += 1;
+
+        match (
+            self.stream.next()?,
+            self.count >= self.fails - 1,
+            self.fails >= 0,
+        ) {
+            (Some(next), _, false) | (Some(next), false, true) => Ok(Some(next)),
+            (None, _, false) => Ok(None),
+            (Some(_), true, true) | (None, _, true) => {
+                let msg = format!("{}/{}: stream failed on purpose on component", self.count, self.fails);
+                if self.panic {
+                    panic!(msg);
+                } else {
+                    Err(Error::StreamError(msg))
+                }
+            }
+        }
+    }
+
+    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+        let msg = format!("{}/{}: stream failed on purpose on emitting artifacts", self.count, self.fails);
+        if self.panic {
+            panic!(msg);
+        } else {
+            Err(Error::ArtifactError(msg))
+        }
+    }
 }
 
 /// Check whether two floats are close to each other
@@ -173,11 +239,29 @@ pub fn load_example(path: &[&str]) -> Buffer {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::stream::consume;
 
     #[test]
     fn test_logging() {
         logging();
         info!("logging enabled!");
+    }
+
+    #[test]
+    fn test_failing_stream() {
+        for i in 0..10 {
+            let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), i, false);
+            match consume(&mut failing) {
+                Err(Error::StreamError(_)) => (),
+                other => panic!(format!("expected stream error, got {:?}", other))
+            }
+        }
+
+        let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), -1, false);
+        match consume(&mut failing) {
+            Err(Error::ArtifactError(_)) => (),
+            other => panic!(format!("expected artifact error, got {:?}", other))
+        }
     }
 
     #[test]

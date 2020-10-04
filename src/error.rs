@@ -49,6 +49,9 @@ pub enum Error {
 
     #[error("{0}")]
     AttributeError(String),
+
+    #[error("{0}")]
+    ArtifactError(String),
 }
 
 // Manual conversion as quick-xml errors don't support cloning

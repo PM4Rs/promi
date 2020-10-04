@@ -190,11 +190,11 @@ impl<I: Stream, H: Handler> From<(I, H)> for Observer<I, H> {
 }
 
 impl<I: Stream, H: Handler> Stream for Observer<I, H> {
-    fn get_inner(&self) -> Option<&dyn Stream> {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
         Some(&self.stream)
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
         Some(&mut self.stream)
     }
 

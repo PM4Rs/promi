@@ -584,11 +584,11 @@ impl<R: io::BufRead> XesReader<R> {
 }
 
 impl<T: io::BufRead + Send> Stream for XesReader<T> {
-    fn get_inner(&self) -> Option<&dyn Stream> {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
         None
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
         None
     }
 

@@ -27,11 +27,11 @@ impl Default for Buffer {
 }
 
 impl Stream for Buffer {
-    fn get_inner(&self) -> Option<&dyn Stream> {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
         None
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
         None
     }
 

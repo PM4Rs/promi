@@ -42,11 +42,11 @@ impl<T: Stream, S: StreamSink> Split<T, S> {
 }
 
 impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
-    fn get_inner(&self) -> Option<&dyn Stream> {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
         Some(&self.stream)
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
         Some(&mut self.stream)
     }
 

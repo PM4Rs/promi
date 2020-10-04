@@ -75,11 +75,11 @@ impl<T: Stream> FailingStream<T> {
 }
 
 impl<T: Stream> Stream for FailingStream<T> {
-    fn get_inner(&self) -> Option<&dyn Stream> {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
         Some(&self.stream)
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
         Some(&mut self.stream)
     }
 
@@ -94,7 +94,10 @@ impl<T: Stream> Stream for FailingStream<T> {
             (Some(next), _, false) | (Some(next), false, true) => Ok(Some(next)),
             (None, _, false) => Ok(None),
             (Some(_), true, true) | (None, _, true) => {
-                let msg = format!("{}/{}: stream failed on purpose on component", self.count, self.fails);
+                let msg = format!(
+                    "{}/{}: stream failed on purpose on component",
+                    self.count, self.fails
+                );
                 if self.panic {
                     panic!(msg);
                 } else {
@@ -105,7 +108,10 @@ impl<T: Stream> Stream for FailingStream<T> {
     }
 
     fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        let msg = format!("{}/{}: stream failed on purpose on emitting artifacts", self.count, self.fails);
+        let msg = format!(
+            "{}/{}: stream failed on purpose on emitting artifacts",
+            self.count, self.fails
+        );
         if self.panic {
             panic!(msg);
         } else {
@@ -253,14 +259,14 @@ pub mod tests {
             let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), i, false);
             match consume(&mut failing) {
                 Err(Error::StreamError(_)) => (),
-                other => panic!(format!("expected stream error, got {:?}", other))
+                other => panic!(format!("expected stream error, got {:?}", other)),
             }
         }
 
         let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), -1, false);
         match consume(&mut failing) {
             Err(Error::ArtifactError(_)) => (),
-            other => panic!(format!("expected artifact error, got {:?}", other))
+            other => panic!(format!("expected artifact error, got {:?}", other)),
         }
     }
 

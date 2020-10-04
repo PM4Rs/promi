@@ -525,10 +525,10 @@ impl Artifact {
 ///
 pub trait Stream: Send {
     /// Get a reference to the inner stream if there is one
-    fn get_inner(&self) -> Option<&dyn Stream>;
+    fn inner_ref(&self) -> Option<&dyn Stream>;
 
     /// Get a mutable reference to the inner stream if there is one
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream>;
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream>;
 
     /// Return the next stream component
     fn next(&mut self) -> ResOpt;
@@ -545,7 +545,7 @@ pub trait Stream: Send {
     ///
     fn emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
         let mut artifacts = Vec::new();
-        if let Some(inner) = self.get_inner_mut() {
+        if let Some(inner) = self.inner_mut() {
             artifacts.extend(Stream::emit_artifacts(inner)?);
         }
         artifacts.extend(Stream::on_emit_artifacts(self)?);
@@ -554,12 +554,12 @@ pub trait Stream: Send {
 }
 
 impl Stream for Box<dyn Stream> {
-    fn get_inner(&self) -> Option<&dyn Stream> {
-        self.as_ref().get_inner()
+    fn inner_ref(&self) -> Option<&dyn Stream> {
+        self.as_ref().inner_ref()
     }
 
-    fn get_inner_mut(&mut self) -> Option<&mut dyn Stream> {
-        self.as_mut().get_inner_mut()
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        self.as_mut().inner_mut()
     }
 
     fn next(&mut self) -> ResOpt {

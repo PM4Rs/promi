@@ -54,7 +54,6 @@ struct FailingStream<T: Stream> {
     stream: T,
     count: i64,
     fails: i64,
-    panic: bool,
 }
 
 impl<T: Stream> FailingStream<T> {
@@ -64,12 +63,11 @@ impl<T: Stream> FailingStream<T> {
     /// this number of components returned or the very last one. In the case _fails_ is negative,
     /// the stream succeeds but fails on emitting artifacts.
     ///
-    pub fn new(stream: T, fails: i64, panic: bool) -> Self {
+    pub fn new(stream: T, fails: i64) -> Self {
         Self {
             stream,
             count: 0,
             fails,
-            panic,
         }
     }
 }
@@ -93,30 +91,18 @@ impl<T: Stream> Stream for FailingStream<T> {
         ) {
             (Some(next), _, false) | (Some(next), false, true) => Ok(Some(next)),
             (None, _, false) => Ok(None),
-            (Some(_), true, true) | (None, _, true) => {
-                let msg = format!(
-                    "{}/{}: stream failed on purpose on component",
-                    self.count, self.fails
-                );
-                if self.panic {
-                    panic!(msg);
-                } else {
-                    Err(Error::StreamError(msg))
-                }
-            }
+            (Some(_), true, true) | (None, _, true) => Err(Error::StreamError(format!(
+                "[{}/{}] stream failed on purpose on component",
+                self.count, self.fails
+            ))),
         }
     }
 
     fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        let msg = format!(
-            "{}/{}: stream failed on purpose on emitting artifacts",
+        Err(Error::ArtifactError(format!(
+            "[{}/{}] stream failed on purpose on emitting artifacts",
             self.count, self.fails
-        );
-        if self.panic {
-            panic!(msg);
-        } else {
-            Err(Error::ArtifactError(msg))
-        }
+        )))
     }
 }
 
@@ -256,14 +242,14 @@ pub mod tests {
     #[test]
     fn test_failing_stream() {
         for i in 0..10 {
-            let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), i, false);
+            let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), i);
             match consume(&mut failing) {
                 Err(Error::StreamError(_)) => (),
                 other => panic!(format!("expected stream error, got {:?}", other)),
             }
         }
 
-        let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), -1, false);
+        let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), -1);
         match consume(&mut failing) {
             Err(Error::ArtifactError(_)) => (),
             other => panic!(format!("expected artifact error, got {:?}", other)),

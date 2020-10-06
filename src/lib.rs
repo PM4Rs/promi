@@ -33,12 +33,17 @@
 //!
 
 extern crate chrono;
+#[cfg(test)]
+#[macro_use]
+extern crate is_close;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log as logging;
 extern crate quick_xml;
 extern crate regex;
+#[cfg(test)]
+extern crate simple_logger;
 extern crate thiserror;
 
 pub use error::{Error, Result};

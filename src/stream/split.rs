@@ -86,7 +86,7 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::dev_util::{assert_is_close, load_example};
+    use crate::dev_util::load_example;
     use crate::stream::buffer::Buffer;
     use crate::stream::channel::stream_channel;
     use crate::stream::observer::Handler;
@@ -153,8 +153,8 @@ pub mod tests {
             train_trace_ratio /= repetitions as f64;
             train_event_ratio /= repetitions as f64;
 
-            assert_is_close(train_trace_ratio, *ratio, Some(1.5 * 1e-2), None, None);
-            assert_is_close(train_event_ratio, *ratio, Some(1.5 * 1e-2), None, None);
+            assert!(is_close!(train_trace_ratio, *ratio, rel_tol = 1.5e-2));
+            assert!(is_close!(train_event_ratio, *ratio, rel_tol = 1.5e-2));
         }
     }
 }

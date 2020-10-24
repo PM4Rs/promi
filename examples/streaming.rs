@@ -76,7 +76,10 @@ fn example_2() {
     let mut writer = xes::XesWriter::new(stdout(), None, None);
     let artifacts = writer.consume(&mut observer).unwrap();
 
-    println!("\n\n{}", Artifact::find::<Statistics>(&artifacts).unwrap())
+    println!(
+        "\n\n{}",
+        Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>()).unwrap()
+    )
 }
 
 /// Store XES file stream in log, convert log to stream buffer and stream it to stdout

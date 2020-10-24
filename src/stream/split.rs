@@ -128,16 +128,20 @@ pub mod tests {
 
                 let artifacts = consume(&mut train_counter).unwrap();
 
-                let [_, train_trace_ct, train_event_ct] =
-                    Artifact::find::<Statistics>(&artifacts).unwrap().counts();
+                let [_, train_trace_ct, train_event_ct] = Artifact::find::<Statistics>(
+                    &artifacts.into_iter().flatten().collect::<Vec<_>>(),
+                )
+                .unwrap()
+                .counts();
 
                 let mut test_counter = StatsCollector::default().into_observer(test_receiver);
                 let artifacts = consume(&mut test_counter).unwrap();
 
-                let [_, test_trace_ct, test_event_ct] =
-                    Artifact::find::<Statistics>(artifacts.as_slice())
-                        .unwrap()
-                        .counts();
+                let [_, test_trace_ct, test_event_ct] = Artifact::find::<Statistics>(
+                    &artifacts.into_iter().flatten().collect::<Vec<_>>(),
+                )
+                .unwrap()
+                .counts();
 
                 if train_event_ct + test_event_ct > 0 {
                     train_event_ratio +=

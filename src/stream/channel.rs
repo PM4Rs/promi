@@ -329,23 +329,27 @@ mod tests {
         // execute pipeline (order is important!)
         let mut results = Vec::new();
         match consume(&mut c_t0) {
-            Ok(artifacts) => {
-                results.push(Artifact::find::<Statistics>(&artifacts).unwrap().counts())
-            }
+            Ok(artifacts) => results.push(
+                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                    .unwrap()
+                    .counts(),
+            ),
             _ => assert!(expect_error),
         }
         match consume(&mut c_t1) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(artifacts.as_slice())
+                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
                     .unwrap()
                     .counts(),
             ),
             _ => assert!(expect_error),
         }
         match consume(&mut c_t2) {
-            Ok(artifacts) => {
-                results.push(Artifact::find::<Statistics>(&artifacts).unwrap().counts())
-            }
+            Ok(artifacts) => results.push(
+                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                    .unwrap()
+                    .counts(),
+            ),
             _ => assert!(expect_error),
         }
 

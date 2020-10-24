@@ -38,7 +38,7 @@
 //! let reader = XesReader::from(io::BufReader::new(s.as_bytes()));
 //! let mut stats_collector = StatsCollector::default().into_observer(reader);
 //!
-//! let artifacts = consume(&mut stats_collector).unwrap();
+//! let artifacts = consume(&mut stats_collector).unwrap().into_iter().flatten().collect::<Vec<_>>();
 //!
 //! let statistics = Artifact::find::<Statistics>(&artifacts).unwrap();
 //!
@@ -150,7 +150,7 @@ mod tests {
 
             let artifacts = consume(&mut observer).unwrap();
             assert_eq!(
-                Artifact::find::<Statistics>(artifacts.as_slice())
+                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
                     .unwrap()
                     .counts(),
                 *e

@@ -57,7 +57,7 @@ pub enum AttributeValue {
 
 impl AttributeValue {
     /// Try to cast attribute to string
-    pub fn try_string(&self) -> Result<&String> {
+    pub fn try_string(&self) -> Result<&str> {
         match self {
             AttributeValue::String(string) => Ok(string),
             other => Err(Error::AttributeError(format!("{:?} is no string", other))),
@@ -97,7 +97,7 @@ impl AttributeValue {
     }
 
     /// Try to cast attribute to id
-    pub fn try_id(&self) -> Result<&String> {
+    pub fn try_id(&self) -> Result<&str> {
         match self {
             AttributeValue::Id(id) => Ok(id),
             other => Err(Error::AttributeError(format!("{:?} is no id", other))),
@@ -543,12 +543,12 @@ pub trait Stream: Send {
     /// A stream may aggregate data over time that is released by calling this method. Usually,
     /// this happens at the end of the stream.
     ///
-    fn emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn emit_artifacts(&mut self) -> Result<Vec<Vec<Artifact>>> {
         let mut artifacts = Vec::new();
         if let Some(inner) = self.inner_mut() {
             artifacts.extend(Stream::emit_artifacts(inner)?);
         }
-        artifacts.extend(Stream::on_emit_artifacts(self)?);
+        artifacts.push(Stream::on_emit_artifacts(self)?);
         Ok(artifacts)
     }
 }
@@ -606,7 +606,7 @@ pub trait StreamSink: Send {
     }
 
     /// Invokes a stream as long as it provides new components.
-    fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Artifact>> {
+    fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Vec<Artifact>>> {
         // call pre-execution hook
         self.on_open()?;
 
@@ -626,10 +626,9 @@ pub trait StreamSink: Send {
         self.on_close()?;
 
         // collect artifacts
-        Ok(Stream::emit_artifacts(stream)?
-            .into_iter()
-            .chain(StreamSink::on_emit_artifacts(self)?.into_iter())
-            .collect())
+        let mut artifacts = Stream::emit_artifacts(stream)?;
+        artifacts.push(StreamSink::on_emit_artifacts(self)?);
+        Ok(artifacts)
     }
 }
 
@@ -671,7 +670,7 @@ impl StreamSink for Void {
 }
 
 /// Creates a dummy sink and consumes the given stream
-pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Artifact>> {
+pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<Artifact>>> {
     Void::default().consume(stream)
 }
 

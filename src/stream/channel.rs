@@ -157,6 +157,8 @@ impl<T, G> NameSpaceEntry<T, G> {
 
 type SenderEntry<T, G> = NameSpaceEntry<Sender<T>, G>;
 type ReceiverEntry<T, G> = NameSpaceEntry<Receiver<T>, G>;
+type ChannelEntry<T, G> = (SenderEntry<T, G>, ReceiverEntry<T, G>);
+type ChannelMap<T, G> = HashMap<String, ChannelEntry<T, G>>;
 
 /// Manage channels via keys
 ///
@@ -169,7 +171,7 @@ type ReceiverEntry<T, G> = NameSpaceEntry<Receiver<T>, G>;
 pub struct ChannelNameSpace<T, G: Copy> {
     bound: Option<usize>,
     generation: Option<G>,
-    channels: HashMap<String, (SenderEntry<T, G>, ReceiverEntry<T, G>)>,
+    channels: ChannelMap<T, G>,
 }
 
 impl<T, G: Copy> ChannelNameSpace<T, G> {
@@ -194,7 +196,7 @@ impl<T, G: Copy> Default for ChannelNameSpace<T, G> {
 }
 
 impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
-    fn lookup(&mut self, key: &str) -> Result<&mut (SenderEntry<T, G>, ReceiverEntry<T, G>)> {
+    fn lookup(&mut self, key: &str) -> Result<&mut ChannelEntry<T, G>> {
         if !self.channels.contains_key(key) {
             let (s, r) = channel(self.bound);
             self.channels.insert(
@@ -211,28 +213,58 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
 
     /// Acquire the sender for the given key if possible
     pub fn acquire_sender(&mut self, key: &str) -> Result<Sender<T>> {
-        if let Some(generation) = self.generation {
-            let (entry, _) = self.lookup(key)?;
-            let sender = entry.take(generation).map_err(|_| {
-                Error::ChannelError(format!("sender {:?} was already acquired", key))
-            })?;
-            Ok(sender)
-        } else {
-            Err(Error::ChannelError("no generation set".to_string()))
+        let generation = self
+            .generation
+            .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
+        let (entry, _) = self.lookup(key)?;
+
+        Ok(entry
+            .take(generation)
+            .map_err(|_| Error::ChannelError(format!("sender {:?} was already acquired", key)))?)
+    }
+
+    /// Acquire an iterator over all remaining senders
+    pub fn acquire_remaining_senders(&mut self) -> Result<impl Iterator<Item = (String, Sender<T>)>> {
+        let generation = self
+            .generation
+            .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
+
+        let mut senders = Vec::new();
+        for (key, (sender, _)) in self.channels.iter_mut() {
+            if let Ok(sender) = sender.take(generation) {
+                senders.push((key.clone(), sender))
+            }
         }
+
+        Ok(senders.into_iter())
     }
 
     /// Acquire the receiver for the given key if possible
     pub fn acquire_receiver(&mut self, key: &str) -> Result<Receiver<T>> {
-        if let Some(generation) = self.generation {
-            let (_, entry) = self.lookup(key)?;
-            let receiver = entry.take(generation).map_err(|_| {
-                Error::ChannelError(format!("receiver {:?} was already acquired", key))
-            })?;
-            Ok(receiver)
-        } else {
-            Err(Error::ChannelError("no generation set".to_string()))
+        let generation = self
+            .generation
+            .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
+        let (_, entry) = self.lookup(key)?;
+
+        Ok(entry
+            .take(generation)
+            .map_err(|_| Error::ChannelError(format!("receiver {:?} was already acquired", key)))?)
+    }
+
+    /// Acquire an iterator over all remaining receivers
+    pub fn acquire_remaining_receivers(&mut self) -> Result<impl Iterator<Item = (String, Receiver<T>)>> {
+        let generation = self
+            .generation
+            .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
+
+        let mut receivers = Vec::new();
+        for (key, (_, receiver)) in self.channels.iter_mut() {
+            if let Ok(sender) = receiver.take(generation) {
+                receivers.push((key.clone(), sender))
+            }
         }
+
+        Ok(receivers.into_iter())
     }
 
     /// Increment generation
@@ -454,5 +486,25 @@ mod tests {
             vec![(0, 0), (2, 1), (3, 3)].into_iter().collect();
 
         assert_eq!(dependencies, cns.dependencies().unwrap());
+
+        let mut cns = ChannelNameSpace::<usize, usize>::default();
+        cns.set_generation(0);
+
+        let sender = cns.acquire_sender("foo").unwrap();
+        let receiver = cns.acquire_receiver("bar").unwrap();
+
+        sender.send(42).unwrap();
+
+        for (name, s) in cns.acquire_remaining_senders().unwrap() {
+            assert_eq!(name, "bar");
+            s.send(1337).unwrap();
+        }
+
+        for (name, r) in cns.acquire_remaining_receivers().unwrap() {
+            assert_eq!(name, "foo");
+            assert_eq!(r.recv().unwrap(), 42);
+        }
+
+        assert_eq!(receiver.recv().unwrap(), 1337);
     }
 }

@@ -18,8 +18,8 @@
 		<string key="concept:name" value="__INVALID__"/>
 		<string key="lifecycle:transition" value="complete"/>
 	</global>
-	<classifier name="MXML Legacy Classifier" keys="concept:name lifecycle:transition"/>
-	<classifier name="Event Name" keys="concept:name"/>
+	<classifier name="MXMLLegacyClassifier" keys="concept:name lifecycle:transition"/>
+	<classifier name="EventName" keys="concept:name"/>
 	<classifier name="Resource" keys="org:resource"/>
 	<string key="source" value="Rapid Synthesizer"/>
 	<string key="concept:name" value="L12.mxml"/>

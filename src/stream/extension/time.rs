@@ -210,12 +210,11 @@ mod tests {
 
     #[test]
     fn test_filter_eq() {
-        let buffer = load_example(&["test", "extension_full.xes"]);
         let a = DateTime::parse_from_rfc3339("1987-07-28T13:37:42.000+00:00").unwrap();
         let b = DateTime::parse_from_rfc3339("1987-07-28T13:40:42.000+00:00").unwrap();
 
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![
                 Time::filter_eq(&TimeType::Timestamp(&a)),
@@ -225,7 +224,7 @@ mod tests {
             None,
         );
         test_filter(
-            buffer,
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![Time::filter_eq(&TimeType::Interval((&a, &b)))]],
             vec![],
             "[defg]",
@@ -235,13 +234,12 @@ mod tests {
 
     #[test]
     fn test_filter_eq_tol() {
-        let buffer = load_example(&["test", "extension_full.xes"]);
         let a = DateTime::parse_from_rfc3339("1987-07-29T13:37:42.000+00:00").unwrap();
         let b = DateTime::parse_from_rfc3339("1987-07-30T13:40:42.000+00:00").unwrap();
 
         let tolerance = Duration::seconds(90);
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![
                 Time::filter_eq_tol(&TimeType::Timestamp(&a), &tolerance),
@@ -253,7 +251,7 @@ mod tests {
 
         let tolerance = Duration::minutes(5);
         test_filter(
-            buffer,
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![Time::filter_eq_tol(
                 &TimeType::Timestamp(&a),
                 &tolerance,
@@ -266,12 +264,11 @@ mod tests {
 
     #[test]
     fn test_filter_before_after() {
-        let buffer = load_example(&["test", "extension_full.xes"]);
         let a = DateTime::parse_from_rfc3339("1987-07-29T13:37:42.000+00:00").unwrap();
         let b = DateTime::parse_from_rfc3339("1987-07-30T13:38:42.000+00:00").unwrap();
 
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![
                 Time::filter_before(&TimeType::Timestamp(&a)),
@@ -281,7 +278,7 @@ mod tests {
             None,
         );
         test_filter(
-            buffer,
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![
                 Time::filter_before(&TimeType::Interval((&a, &b))),
                 Time::filter_after(&TimeType::Timestamp(&b)),
@@ -294,7 +291,6 @@ mod tests {
 
     #[test]
     fn test_filter_starts_ends_in() {
-        let buffer = load_example(&["test", "extension_full.xes"]);
         let a = DateTime::parse_from_rfc3339("1987-07-28T13:37:42.000+00:00").unwrap();
         let b = DateTime::parse_from_rfc3339("1987-07-28T13:40:42.000+00:00").unwrap();
         let c = DateTime::parse_from_rfc3339("1987-07-29T13:39:12.000+00:00").unwrap();
@@ -302,7 +298,7 @@ mod tests {
 
         // test in
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![
                 Time::filter_in(&TimeType::Timestamp(&a)),
@@ -312,7 +308,7 @@ mod tests {
             None,
         );
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![Time::filter_in(&TimeType::Interval((&a, &d)))]],
             vec![],
             "[defg][hijk]",
@@ -321,14 +317,14 @@ mod tests {
 
         // test starts in
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![Time::filter_starts_in(&TimeType::Interval((&c, &d)))]],
             "[][][jk][lm][][]",
             None,
         );
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![Time::filter_starts_in(&TimeType::Interval((&c, &d)))]],
             vec![],
             "[lmno]",
@@ -337,14 +333,14 @@ mod tests {
 
         // test ends in
         test_filter(
-            buffer.clone(),
+            load_example(&["test", "extension_full.xes"]),
             vec![],
             vec![vec![Time::filter_ends_in(&TimeType::Interval((&c, &d)))]],
             "[][][jk][lm][][]",
             None,
         );
         test_filter(
-            buffer,
+            load_example(&["test", "extension_full.xes"]),
             vec![vec![Time::filter_ends_in(&TimeType::Interval((&c, &d)))]],
             vec![],
             "[hijk]",

@@ -56,7 +56,7 @@ use crate::error::Result;
 use crate::stream::{AnyArtifact, Artifact, Event, observer::Handler, Trace};
 
 /// Container for statistical data of an event stream
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Statistics {
     ct_trace: Vec<usize>,
     ct_event: usize,
@@ -137,6 +137,10 @@ impl Handler for StatsCollector {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
+    use serde::Serialize;
+
     use crate::dev_util::load_example;
     use crate::stream::{consume, observer::Observer};
 
@@ -167,5 +171,21 @@ mod tests {
                 *e
             );
         }
+
+        let buffer = load_example(&["book", "L1.xes"]);
+        let mut observer = Observer::new(buffer);
+        observer.register(StatsCollector::default());
+
+        let artifact = consume(&mut observer).unwrap().into_iter().flatten().next().unwrap();
+
+        let mut buffer = io::BufWriter::new(vec![]);
+        let mut serializer = serde_json::Serializer::new(&mut buffer);
+
+        artifact.serialize(&mut serializer).unwrap();
+
+        assert_eq!(
+            r#"{"artifact":{"ct_trace":[3,4,4,4,4,4],"ct_event":23}}"#,
+            String::from_utf8(buffer.into_inner().unwrap()).unwrap()
+        );
     }
 }

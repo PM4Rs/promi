@@ -479,27 +479,29 @@ impl Attributes for Component {
 pub type ResOpt = Result<Option<Component>>;
 
 /// A protocol to represent any kind of aggregation product a event stream may produce
-pub trait Artifact: Any + Send + Debug {
+pub trait Artifact: Any + Send + Debug + erased_serde::Serialize {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+erased_serde::serialize_trait_object!(Artifact);
+
 /// Container for arbitrary artifacts a stream processing pipeline may create
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct AnyArtifact {
-    inner: Box<dyn Artifact>,
+    artifact: Box<dyn Artifact>,
 }
 
 impl AnyArtifact {
     /// Try to cast down the artifact to the given type
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        Any::downcast_ref::<T>(self.inner.as_any())
+        Any::downcast_ref::<T>(self.artifact.as_any())
     }
 
     /// Try to cast down the artifact mutably to the given type
     pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        Any::downcast_mut::<T>(self.inner.as_any_mut())
+        Any::downcast_mut::<T>(self.artifact.as_any_mut())
     }
 
     /// Find the first artifact in an iterator that can be casted down to the given type
@@ -520,12 +522,17 @@ impl AnyArtifact {
     ) -> impl Iterator<Item = &'a T> {
         artifacts.filter_map(|a| a.downcast_ref::<T>())
     }
+
+    /// Serialize inner artifact without the `AnyArtifact` container
+    pub fn serialize_inner(&self, serializer: &mut dyn erased_serde::Serializer) -> Result<()>  {
+        Ok(self.artifact.erased_serialize(serializer).map(|_| ())?)
+    }
 }
 
 impl<T: Artifact> From<T> for AnyArtifact {
     fn from(artifact: T) -> Self {
         AnyArtifact {
-            inner: Box::new(artifact),
+            artifact: Box::new(artifact),
         }
     }
 }

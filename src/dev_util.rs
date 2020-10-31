@@ -11,10 +11,10 @@ use std::time::SystemTime;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
+use crate::{Error, Result};
+use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
 use crate::stream::buffer::Buffer;
 use crate::stream::xes::XesReader;
-use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
-use crate::{Error, Result};
 
 static LOGGER: Once = Once::new();
 

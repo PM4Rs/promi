@@ -478,13 +478,14 @@ impl Attributes for Component {
 /// Container for stream components that can express the empty components as well as errors
 pub type ResOpt = Result<Option<Component>>;
 
+/// A protocol to represent any kind of aggregation product a event stream may produce
 pub trait Artifact: Any + Send + Debug {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-/// Container for arbitrary artifacts a stream processing pipeline creates
+/// Container for arbitrary artifacts a stream processing pipeline may create
 #[derive(Debug)]
 pub struct AnyArtifact {
     inner: Box<dyn Artifact>,
@@ -595,7 +596,9 @@ pub trait StreamSink: Send {
     }
 
     /// Callback that is invoked on each stream component
-    fn on_component(&mut self, component: Component) -> Result<()>;
+    fn on_component(&mut self, _component: Component) -> Result<()> {
+        Ok(())
+    }
 
     /// Optional callback that is invoked once the stream is closed
     fn on_close(&mut self) -> Result<()> {
@@ -688,11 +691,7 @@ impl Stream for Void {
     }
 }
 
-impl StreamSink for Void {
-    fn on_component(&mut self, _: Component) -> Result<()> {
-        Ok(())
-    }
-}
+impl StreamSink for Void { }
 
 /// Creates a dummy sink and consumes the given stream
 pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<AnyArtifact>>> {

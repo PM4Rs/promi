@@ -1,7 +1,7 @@
 //! A stateful observer that allows for registering callbacks to handle stream components
 
 use crate::error::{Error, Result};
-use crate::stream::{Artifact, Component, ComponentType, Event, Meta, ResOpt, Stream, Trace};
+use crate::stream::{AnyArtifact, Component, ComponentType, Event, Meta, ResOpt, Stream, Trace};
 
 /// Gets registered with an observer while providing callbacks
 ///
@@ -41,7 +41,7 @@ pub trait Handler: Send {
     /// A handler may aggregate data over an event stream that is released by calling this method.
     /// Usually, this happens at the end of a stream.
     ///
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn release_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         Ok(vec![])
     }
 
@@ -208,7 +208,7 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
         Ok(None)
     }
 
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         let mut artifacts = Vec::new();
 
         for handler in self.handler.iter_mut() {

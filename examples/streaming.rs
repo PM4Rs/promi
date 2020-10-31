@@ -2,7 +2,7 @@ use promi::stream::observer::Handler;
 use promi::stream::stats::Statistics;
 use promi::stream::validator::Validator;
 use promi::stream::{
-    buffer, consume, observer::Observer, stats::StatsCollector, xes, Artifact, Log, StreamSink,
+    buffer, consume, observer::Observer, stats::StatsCollector, xes, AnyArtifact, Log, StreamSink,
 };
 use std::fs::File;
 use std::io::{stdout, BufReader};
@@ -78,7 +78,7 @@ fn example_2() {
 
     println!(
         "\n\n{}",
-        Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>()).unwrap()
+        AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten()).unwrap()
     )
 }
 

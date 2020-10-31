@@ -140,9 +140,9 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    fn new(key: String, attribute: AttributeValue) -> Attribute {
+    fn new<K: Into<String>>(key: K, attribute: AttributeValue) -> Attribute {
         Attribute {
-            key,
+            key: key.into(),
             value: attribute,
         }
     }
@@ -478,43 +478,54 @@ impl Attributes for Component {
 /// Container for stream components that can express the empty components as well as errors
 pub type ResOpt = Result<Option<Component>>;
 
-/// Container for arbitrary artifacts a stream processing pipeline creates
-#[derive(Debug)]
-pub struct Artifact {
-    inner: Box<dyn Any + Send>,
+pub trait Artifact: Any + Send + Debug {
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl Artifact {
-    /// Tries to down cast the artifact to the given type
-    pub fn cast_ref<T: 'static>(&self) -> Option<&T> {
-        self.inner.downcast_ref::<T>()
+/// Container for arbitrary artifacts a stream processing pipeline creates
+#[derive(Debug)]
+pub struct AnyArtifact {
+    inner: Box<dyn Artifact>,
+}
+
+impl AnyArtifact {
+    /// Try to cast down the artifact to the given type
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        Any::downcast_ref::<T>(self.inner.as_any())
     }
 
-    /// Tries to cast down the artifact mutably to the given type
-    pub fn cast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.inner.downcast_mut::<T>()
+    /// Try to cast down the artifact mutably to the given type
+    pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        Any::downcast_mut::<T>(self.inner.as_any_mut())
     }
 
-    /// Returns the first artifact that can be casted down to the given type
-    pub fn find<T: 'static>(artifacts: &[Artifact]) -> Option<&T> {
+    /// Find the first artifact in an iterator that can be casted down to the given type
+    pub fn find<'a, T: 'static>(
+        artifacts: &mut dyn Iterator<Item = &'a AnyArtifact>,
+    ) -> Option<&'a T> {
         for artifact in artifacts {
-            if let Some(value) = artifact.cast_ref::<T>() {
+            if let Some(value) = artifact.downcast_ref::<T>() {
                 return Some(value);
             }
         }
         None
     }
 
-    /// Returns all artifacts that can be casted down to the given type
-    pub fn find_all<T: 'static>(artifacts: &[Artifact]) -> Box<dyn Iterator<Item = &T> + '_> {
-        Box::new(artifacts.iter().filter_map(|a| a.cast_ref::<T>()))
+    /// Find all artifacts in an iterator that can be casted down to the given type
+    pub fn find_all<'a, T: 'static>(
+        artifacts: &'a mut (dyn std::iter::Iterator<Item = &'a AnyArtifact> + 'a),
+    ) -> impl Iterator<Item = &'a T> {
+        artifacts.filter_map(|a| a.downcast_ref::<T>())
     }
 }
 
-impl Artifact {
-    /// Create new artifact from any given item
-    pub fn new<T: Any + Send + 'static>(t: T) -> Self {
-        Self { inner: Box::new(t) }
+impl<T: Artifact> From<T> for AnyArtifact {
+    fn from(artifact: T) -> Self {
+        AnyArtifact {
+            inner: Box::new(artifact),
+        }
     }
 }
 
@@ -534,7 +545,7 @@ pub trait Stream: Send {
     fn next(&mut self) -> ResOpt;
 
     /// Callback that releases artifacts of stream
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         Ok(vec![])
     }
 
@@ -543,7 +554,7 @@ pub trait Stream: Send {
     /// A stream may aggregate data over time that is released by calling this method. Usually,
     /// this happens at the end of the stream.
     ///
-    fn emit_artifacts(&mut self) -> Result<Vec<Vec<Artifact>>> {
+    fn emit_artifacts(&mut self) -> Result<Vec<Vec<AnyArtifact>>> {
         let mut artifacts = Vec::new();
         if let Some(inner) = self.inner_mut() {
             artifacts.extend(Stream::emit_artifacts(inner)?);
@@ -553,7 +564,7 @@ pub trait Stream: Send {
     }
 }
 
-impl Stream for Box<dyn Stream> {
+impl<'a> Stream for Box<dyn Stream + 'a> {
     fn inner_ref(&self) -> Option<&dyn Stream> {
         self.as_ref().inner_ref()
     }
@@ -566,7 +577,7 @@ impl Stream for Box<dyn Stream> {
         self.as_mut().next()
     }
 
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         self.as_mut().on_emit_artifacts()
     }
 }
@@ -601,12 +612,12 @@ pub trait StreamSink: Send {
     /// A stream sink may aggregate data over time that is released by calling this method. Usually,
     /// this happens at the end of the stream.
     ///
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         Ok(vec![])
     }
 
     /// Invokes a stream as long as it provides new components.
-    fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Vec<Artifact>>> {
+    fn consume(&mut self, stream: &mut dyn Stream) -> Result<Vec<Vec<AnyArtifact>>> {
         // call pre-execution hook
         self.on_open()?;
 
@@ -632,7 +643,7 @@ pub trait StreamSink: Send {
     }
 }
 
-impl StreamSink for Box<dyn StreamSink> {
+impl<'a> StreamSink for Box<dyn StreamSink + 'a> {
     fn on_open(&mut self) -> Result<()> {
         self.as_mut().on_open()
     }
@@ -649,17 +660,31 @@ impl StreamSink for Box<dyn StreamSink> {
         self.as_mut().on_error(error)
     }
 
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         self.as_mut().on_emit_artifacts()
     }
 }
 
-/// A dummy sink that does nothing but consuming the given stream
+/// A dummy stream / sink that does nothing but producing an empty or consuming a given stream
 pub struct Void;
 
 impl Default for Void {
     fn default() -> Self {
         Void {}
+    }
+}
+
+impl Stream for Void {
+    fn inner_ref(&self) -> Option<&dyn Stream> {
+        None
+    }
+
+    fn inner_mut(&mut self) -> Option<&mut dyn Stream> {
+        None
+    }
+
+    fn next(&mut self) -> ResOpt {
+        Ok(None)
     }
 }
 
@@ -670,7 +695,7 @@ impl StreamSink for Void {
 }
 
 /// Creates a dummy sink and consumes the given stream
-pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<Artifact>>> {
+pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<AnyArtifact>>> {
     Void::default().consume(stream)
 }
 

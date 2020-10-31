@@ -6,7 +6,7 @@
 //! ```
 //! use std::io;
 //! use promi::stream::{
-//!     Artifact,
+//!     AnyArtifact,
 //!     consume,
 //!     observer::Observer,
 //!     stats::{StatsCollector, Statistics},
@@ -38,21 +38,22 @@
 //! let reader = XesReader::from(io::BufReader::new(s.as_bytes()));
 //! let mut stats_collector = StatsCollector::default().into_observer(reader);
 //!
-//! let artifacts = consume(&mut stats_collector).unwrap().into_iter().flatten().collect::<Vec<_>>();
+//! let artifacts = consume(&mut stats_collector).unwrap();
 //!
-//! let statistics = Artifact::find::<Statistics>(&artifacts).unwrap();
+//! let statistics = AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten()).unwrap();
 //!
 //! assert_eq!([1, 2, 4], statistics.counts());
 //! println!("{}", statistics);
 //! ```
 //!
 
+use std::any::Any;
 use std::fmt;
 use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{observer::Handler, Artifact, Event, Trace};
+use crate::stream::{AnyArtifact, Artifact, Event, observer::Handler, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone)]
@@ -80,6 +81,16 @@ impl Default for Statistics {
             ct_trace: Vec::new(),
             ct_event: 0,
         }
+    }
+}
+
+impl Artifact for Statistics {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -119,8 +130,8 @@ impl Handler for StatsCollector {
         Ok(Some(event))
     }
 
-    fn release_artifacts(&mut self) -> Result<Vec<Artifact>> {
-        Ok(vec![Artifact::new(mem::take(&mut self.statistics))])
+    fn release_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
+        Ok(vec![mem::take(&mut self.statistics).into()])
     }
 }
 
@@ -150,7 +161,7 @@ mod tests {
 
             let artifacts = consume(&mut observer).unwrap();
             assert_eq!(
-                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
                     .unwrap()
                     .counts(),
                 *e

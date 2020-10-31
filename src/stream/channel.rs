@@ -224,7 +224,9 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
     }
 
     /// Acquire an iterator over all remaining senders
-    pub fn acquire_remaining_senders(&mut self) -> Result<impl Iterator<Item = (String, Sender<T>)>> {
+    pub fn acquire_remaining_senders(
+        &mut self,
+    ) -> Result<impl Iterator<Item = (String, Sender<T>)>> {
         let generation = self
             .generation
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
@@ -252,7 +254,9 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
     }
 
     /// Acquire an iterator over all remaining receivers
-    pub fn acquire_remaining_receivers(&mut self) -> Result<impl Iterator<Item = (String, Receiver<T>)>> {
+    pub fn acquire_remaining_receivers(
+        &mut self,
+    ) -> Result<impl Iterator<Item = (String, Receiver<T>)>> {
         let generation = self
             .generation
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
@@ -319,7 +323,7 @@ mod tests {
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
-    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, Artifact};
+    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, AnyArtifact};
 
     use super::*;
 
@@ -362,7 +366,7 @@ mod tests {
         let mut results = Vec::new();
         match consume(&mut c_t0) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
                     .unwrap()
                     .counts(),
             ),
@@ -370,7 +374,7 @@ mod tests {
         }
         match consume(&mut c_t1) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
                     .unwrap()
                     .counts(),
             ),
@@ -378,7 +382,7 @@ mod tests {
         }
         match consume(&mut c_t2) {
             Ok(artifacts) => results.push(
-                Artifact::find::<Statistics>(&artifacts.into_iter().flatten().collect::<Vec<_>>())
+                AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
                     .unwrap()
                     .counts(),
             ),

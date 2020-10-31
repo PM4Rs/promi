@@ -3,7 +3,7 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-use crate::stream::{Artifact, Component, ResOpt, Stream, StreamSink};
+use crate::stream::{AnyArtifact, Component, ResOpt, Stream, StreamSink};
 use crate::Result;
 
 /// Train-Test split
@@ -79,7 +79,7 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
         }
     }
 
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         self.test_sink.on_emit_artifacts()
     }
 }
@@ -91,7 +91,7 @@ pub mod tests {
     use crate::stream::channel::stream_channel;
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
-    use crate::stream::{consume, Artifact, Log};
+    use crate::stream::{consume, AnyArtifact, Log};
 
     use super::*;
 
@@ -128,20 +128,18 @@ pub mod tests {
 
                 let artifacts = consume(&mut train_counter).unwrap();
 
-                let [_, train_trace_ct, train_event_ct] = Artifact::find::<Statistics>(
-                    &artifacts.into_iter().flatten().collect::<Vec<_>>(),
-                )
-                .unwrap()
-                .counts();
+                let [_, train_trace_ct, train_event_ct] =
+                    AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
+                        .unwrap()
+                        .counts();
 
                 let mut test_counter = StatsCollector::default().into_observer(test_receiver);
                 let artifacts = consume(&mut test_counter).unwrap();
 
-                let [_, test_trace_ct, test_event_ct] = Artifact::find::<Statistics>(
-                    &artifacts.into_iter().flatten().collect::<Vec<_>>(),
-                )
-                .unwrap()
-                .counts();
+                let [_, test_trace_ct, test_event_ct] =
+                    AnyArtifact::find::<Statistics>(&mut artifacts.iter().flatten())
+                        .unwrap()
+                        .counts();
 
                 if train_event_ct + test_event_ct > 0 {
                     train_event_ratio +=

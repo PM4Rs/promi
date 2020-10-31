@@ -1,17 +1,19 @@
 //! Useful, potentially panicking functions for developing promi.
 //!
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, Once};
+use std::time::SystemTime;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
 use crate::stream::buffer::Buffer;
 use crate::stream::xes::XesReader;
-use crate::stream::{Artifact, ResOpt, Stream, StreamSink};
+use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
 use crate::{Error, Result};
 
 static LOGGER: Once = Once::new();
@@ -95,7 +97,7 @@ impl<T: Stream> Stream for FailingStream<T> {
         }
     }
 
-    fn on_emit_artifacts(&mut self) -> Result<Vec<Artifact>> {
+    fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         Err(Error::ArtifactError(format!(
             "[{}/{}] stream failed on purpose on emitting artifacts",
             self.count, self.fails

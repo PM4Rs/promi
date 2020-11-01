@@ -11,6 +11,7 @@ matrix:
 
 before_install:
   - sudo apt-get -y install libxml2-utils openssl
+  - rustup target add wasm32-unknown-unknown
 
 before_script:
   - cargo generate-lockfile
@@ -18,3 +19,4 @@ before_script:
 script:
   - cargo check --verbose --workspace
   - cargo test --verbose --workspace
+  - cargo check --verbose --workspace --target wasm32-unknown-unknown

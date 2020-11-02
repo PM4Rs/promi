@@ -16,6 +16,9 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
+use erased_serde::{Serialize as ErasedSerialize, Serializer as ErasedSerializer};
+use serde::{Deserialize, Serialize};
+
 use crate::{DateTime, Error, Result};
 
 // modules
@@ -32,7 +35,7 @@ pub mod xes;
 pub mod xml_util;
 
 /// Mirrors types available in `AttributeValue` enum
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeType {
     String,
     Date,
@@ -44,7 +47,7 @@ pub enum AttributeType {
 }
 
 /// Attribute value type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AttributeValue {
     String(String),
     Date(DateTime),
@@ -133,7 +136,7 @@ impl AttributeValue {
 /// > Attributes describe the enclosing component, which may contain an arbitrary number of
 /// > attributes.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attribute {
     key: String,
     value: AttributeValue,
@@ -153,7 +156,7 @@ impl Attribute {
 }
 
 /// Represents whether global or classifier target events or traces
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Scope {
     Event,
     Trace,
@@ -176,7 +179,7 @@ impl TryFrom<Option<String>> for Scope {
 }
 
 /// Extension declaration -- the actual behaviour is implemented via the `Extension` trait
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtensionDecl {
     name: String,
     prefix: String,
@@ -188,7 +191,7 @@ pub struct ExtensionDecl {
 /// Globals define attributes that have to be present in target scope and provide default values for
 /// such. This may either target traces or events, regardless whether within a trace or not.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Global {
     scope: Scope,
     attributes: Vec<Attribute>,
@@ -219,7 +222,7 @@ impl Global {
 }
 
 /// Classifier declaration -- the actual behaviour is implemented by `Classifier`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassifierDecl {
     name: String,
     scope: Scope,
@@ -227,7 +230,7 @@ pub struct ClassifierDecl {
 }
 
 /// Container for meta information of an event stream
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meta {
     extensions: Vec<ExtensionDecl>,
     globals: Vec<Global>,
@@ -255,7 +258,7 @@ impl Default for Meta {
 /// > events to cases. For this, we will use the combination of a trace classifier and an event
 /// > classifier.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     attributes: BTreeMap<String, AttributeValue>,
 }
@@ -276,7 +279,7 @@ impl Default for Event {
 /// > list of events that are related to a single case. The order of the events in this list shall
 /// > be important, as it signifies the order in which the events have been observed.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trace {
     attributes: BTreeMap<String, AttributeValue>,
     events: Vec<Event>,
@@ -301,7 +304,7 @@ impl Default for Trace {
 /// > signifies the order in which the events have been observed. If the log contains only events
 /// > and no traces, then the log is also called a stream.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Log {
     meta: Meta,
     traces: Vec<Trace>,
@@ -349,7 +352,7 @@ impl StreamSink for Log {
 }
 
 /// Atomic unit of an extensible event stream
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Component {
     Meta(Meta),
     Trace(Trace),
@@ -357,12 +360,23 @@ pub enum Component {
 }
 
 /// State of an extensible event stream
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
 pub enum ComponentType {
     Meta,
     Trace,
     Event,
 }
+
+// TODO: Once `ops::Try` lands in stable, replace ResOpt by something like:
+// ```Rust
+// enum ResOpt {
+//     Component(Component),
+//     Error(Error),
+//     None
+// }
+// ```
+/// Container for stream components that can express the empty components as well as errors
+pub type ResOpt = Result<Option<Component>>;
 
 /// Provide a unified way to access an component's attributes and those of potential child components
 pub trait Attributes {
@@ -467,19 +481,8 @@ impl Attributes for Component {
     }
 }
 
-// TODO: Once `ops::Try` lands in stable, replace ResOpt by something like:
-// ```Rust
-// enum ResOpt {
-//     Component(Component),
-//     Error(Error),
-//     None
-// }
-// ```
-/// Container for stream components that can express the empty components as well as errors
-pub type ResOpt = Result<Option<Component>>;
-
 /// A protocol to represent any kind of aggregation product a event stream may produce
-pub trait Artifact: Any + Send + Debug + erased_serde::Serialize {
+pub trait Artifact: Any + Send + Debug + ErasedSerialize {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -488,7 +491,7 @@ pub trait Artifact: Any + Send + Debug + erased_serde::Serialize {
 erased_serde::serialize_trait_object!(Artifact);
 
 /// Container for arbitrary artifacts a stream processing pipeline may create
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Serialize)]
 pub struct AnyArtifact {
     artifact: Box<dyn Artifact>,
 }
@@ -524,7 +527,7 @@ impl AnyArtifact {
     }
 
     /// Serialize inner artifact without the `AnyArtifact` container
-    pub fn serialize_inner(&self, serializer: &mut dyn erased_serde::Serializer) -> Result<()>  {
+    pub fn serialize_inner(&self, serializer: &mut dyn ErasedSerializer) -> Result<()> {
         Ok(self.artifact.erased_serialize(serializer).map(|_| ())?)
     }
 }
@@ -698,7 +701,7 @@ impl Stream for Void {
     }
 }
 
-impl StreamSink for Void { }
+impl StreamSink for Void {}
 
 /// Creates a dummy sink and consumes the given stream
 pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<AnyArtifact>>> {

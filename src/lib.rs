@@ -33,6 +33,7 @@
 //!
 
 extern crate chrono;
+extern crate erased_serde;
 #[cfg(test)]
 #[macro_use]
 extern crate is_close;
@@ -42,6 +43,7 @@ extern crate lazy_static;
 extern crate log as logging;
 extern crate quick_xml;
 extern crate regex;
+extern crate serde;
 #[cfg(test)]
 extern crate simple_logger;
 extern crate thiserror;

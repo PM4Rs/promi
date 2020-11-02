@@ -53,7 +53,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{AnyArtifact, Artifact, Event, observer::Handler, Trace};
+use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone, serde::Serialize)]
@@ -176,7 +176,12 @@ mod tests {
         let mut observer = Observer::new(buffer);
         observer.register(StatsCollector::default());
 
-        let artifact = consume(&mut observer).unwrap().into_iter().flatten().next().unwrap();
+        let artifact = consume(&mut observer)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .next()
+            .unwrap();
 
         let mut buffer = io::BufWriter::new(vec![]);
         let mut serializer = serde_json::Serializer::new(&mut buffer);

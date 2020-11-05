@@ -3,10 +3,11 @@ use std::io::{BufReader, stdout};
 use std::path::Path;
 
 use promi::stream::{
-    AnyArtifact, buffer, Log, observer::Observer, stats::StatsCollector, StreamSink, xes,
+    AnyArtifact, buffer, StreamSink, xes,
 };
-use promi::stream::observer::Handler;
-use promi::stream::stats::Statistics;
+use promi::stream::log::Log;
+use promi::stream::observer::{Handler, Observer};
+use promi::stream::stats::{Statistics, StatsCollector};
 use promi::stream::validator::Validator;
 use promi::stream::void::consume;
 

@@ -732,7 +732,7 @@ mod tests {
 
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::buffer::Buffer;
-    use crate::stream::consume;
+    use crate::stream::void::consume;
 
     use super::*;
 

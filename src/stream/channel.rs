@@ -323,7 +323,7 @@ mod tests {
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
-    use crate::stream::{consume, duplicator::Duplicator, xes::XesReader, AnyArtifact};
+    use crate::stream::{duplicator::Duplicator, void::consume, xes::XesReader, AnyArtifact};
 
     use super::*;
 

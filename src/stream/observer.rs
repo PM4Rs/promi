@@ -224,7 +224,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::dev_util::{expand_static, open_buffered};
-    use crate::stream::{consume, xes::XesReader};
+    use crate::stream::{void::consume, xes::XesReader};
 
     use super::*;
 

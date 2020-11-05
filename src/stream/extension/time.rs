@@ -191,7 +191,7 @@ mod tests {
     use crate::stream::filter::tests::test_filter;
     use crate::stream::observer::Handler;
     use crate::stream::validator::Validator;
-    use crate::stream::{consume, Component, Stream};
+    use crate::stream::{void::consume, Component, Stream};
 
     use super::*;
 

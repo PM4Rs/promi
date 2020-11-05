@@ -85,7 +85,7 @@ impl Handler for Validator {
 #[cfg(test)]
 mod tests {
     use crate::dev_util::load_example;
-    use crate::stream::consume;
+    use crate::stream::void::consume;
 
     use super::*;
 

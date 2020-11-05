@@ -143,7 +143,7 @@ pub fn load_example(path: &[&str]) -> Buffer {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::stream::consume;
+    use crate::stream::void::consume;
 
     use super::*;
 

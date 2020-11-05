@@ -7,7 +7,6 @@
 //! use std::io;
 //! use promi::stream::{
 //!     AnyArtifact,
-//!     consume,
 //!     observer::Observer,
 //!     stats::{StatsCollector, Statistics},
 //!     Stream,
@@ -15,6 +14,7 @@
 //!     xes::XesReader
 //! };
 //! use promi::stream::observer::Handler;
+//! use promi::stream::void::consume;
 //!
 //! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
 //!            <log xes.version="1.0" xes.features="">
@@ -53,7 +53,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Trace};
+use crate::stream::{AnyArtifact, Artifact, Event, observer::Handler, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone, serde::Serialize)]
@@ -142,7 +142,7 @@ mod tests {
     use serde::Serialize;
 
     use crate::dev_util::load_example;
-    use crate::stream::{consume, observer::Observer};
+    use crate::stream::{observer::Observer, void::consume};
 
     use super::*;
 

@@ -1,12 +1,14 @@
+use std::fs::File;
+use std::io::{BufReader, stdout};
+use std::path::Path;
+
+use promi::stream::{
+    AnyArtifact, buffer, Log, observer::Observer, stats::StatsCollector, StreamSink, xes,
+};
 use promi::stream::observer::Handler;
 use promi::stream::stats::Statistics;
 use promi::stream::validator::Validator;
-use promi::stream::{
-    buffer, consume, observer::Observer, stats::StatsCollector, xes, AnyArtifact, Log, StreamSink,
-};
-use std::fs::File;
-use std::io::{stdout, BufReader};
-use std::path::Path;
+use promi::stream::void::consume;
 
 /// Stream XES string to stdout
 ///

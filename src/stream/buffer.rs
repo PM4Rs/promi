@@ -100,7 +100,7 @@ mod tests {
         assert_eq!(buffer_a.len(), 0);
         assert_eq!(buffer_b.len(), 8);
 
-        stream::consume(&mut buffer_b).unwrap();
+        stream::void::consume(&mut buffer_b).unwrap();
 
         assert_eq!(buffer_a.len(), 0);
         assert_eq!(buffer_b.len(), 0);

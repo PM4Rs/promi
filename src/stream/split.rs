@@ -91,7 +91,7 @@ pub mod tests {
     use crate::stream::channel::stream_channel;
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
-    use crate::stream::{consume, AnyArtifact, Log};
+    use crate::stream::{void::consume, AnyArtifact, Log};
 
     use super::*;
 

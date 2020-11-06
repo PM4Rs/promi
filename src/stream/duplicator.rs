@@ -1,6 +1,6 @@
 //! Duplicate an event stream
 
-use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
+use crate::stream::{AnyArtifact, ResOpt, Sink, Stream};
 use crate::Result;
 
 /// Creates a copy of an extensible event stream on the fly
@@ -8,13 +8,13 @@ use crate::Result;
 /// A duplicator forwards a stream while copying each component (inclusive errors) to forward them
 /// to the given stream sink.
 ///
-pub struct Duplicator<T: Stream, S: StreamSink> {
+pub struct Duplicator<T: Stream, S: Sink> {
     stream: T,
     sink: S,
     open: bool,
 }
 
-impl<T: Stream, S: StreamSink> Duplicator<T, S> {
+impl<T: Stream, S: Sink> Duplicator<T, S> {
     /// Create a new duplicator
     pub fn new(stream: T, sink: S) -> Self {
         Duplicator {
@@ -30,7 +30,7 @@ impl<T: Stream, S: StreamSink> Duplicator<T, S> {
     }
 }
 
-impl<T: Stream, S: StreamSink> Stream for Duplicator<T, S> {
+impl<T: Stream, S: Sink> Stream for Duplicator<T, S> {
     fn inner_ref(&self) -> Option<&dyn Stream> {
         Some(&self.stream)
     }
@@ -73,7 +73,7 @@ mod tests {
     use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::tests::TestSink;
     use crate::stream::xes::XesReader;
-    use crate::stream::StreamSink;
+    use crate::stream::Sink;
 
     use super::*;
 

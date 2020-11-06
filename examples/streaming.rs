@@ -1,15 +1,13 @@
 use std::fs::File;
-use std::io::{BufReader, stdout};
+use std::io::{stdout, BufReader};
 use std::path::Path;
 
-use promi::stream::{
-    AnyArtifact, buffer, StreamSink, xes,
-};
 use promi::stream::log::Log;
 use promi::stream::observer::{Handler, Observer};
 use promi::stream::stats::{Statistics, StatsCollector};
 use promi::stream::validator::Validator;
 use promi::stream::void::consume;
+use promi::stream::{buffer, xes, AnyArtifact, Sink};
 
 /// Stream XES string to stdout
 ///

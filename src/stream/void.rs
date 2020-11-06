@@ -1,7 +1,7 @@
 //! Dummy stream and / or sink.
 //!
 
-use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
+use crate::stream::{AnyArtifact, ResOpt, Sink, Stream};
 use crate::Result;
 
 /// A dummy stream / sink that does nothing but producing an empty or consuming a given stream
@@ -27,7 +27,7 @@ impl Stream for Void {
     }
 }
 
-impl StreamSink for Void {}
+impl Sink for Void {}
 
 /// Creates a dummy sink and consumes the given stream
 pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<AnyArtifact>>> {

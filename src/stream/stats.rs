@@ -10,7 +10,7 @@
 //!     observer::Observer,
 //!     stats::{StatsCollector, Statistics},
 //!     Stream,
-//!     StreamSink,
+//!     Sink,
 //!     xes::XesReader
 //! };
 //! use promi::stream::observer::Handler;
@@ -53,7 +53,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{AnyArtifact, Artifact, Event, observer::Handler, Trace};
+use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone, serde::Serialize)]

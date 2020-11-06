@@ -3,8 +3,8 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
+use crate::stream::{AnyArtifact, Component, ResOpt, Sink, Stream};
 use crate::Result;
-use crate::stream::{AnyArtifact, Component, ResOpt, Stream, StreamSink};
 
 /// Train-Test split
 ///
@@ -12,14 +12,14 @@ use crate::stream::{AnyArtifact, Component, ResOpt, Stream, StreamSink};
 /// training are forwarded, those for testing are sent to a stream sink. This struct may also be
 /// used for random sampling only.
 ///
-pub struct Split<T: Stream, S: StreamSink> {
+pub struct Split<T: Stream, S: Sink> {
     stream: T,
     test_sink: S,
     train_ratio: f64,
     rng: Pcg64,
 }
 
-impl<T: Stream, S: StreamSink> Split<T, S> {
+impl<T: Stream, S: Sink> Split<T, S> {
     /// Create a new train-test split
     pub fn new(
         train_stream: T,
@@ -41,7 +41,7 @@ impl<T: Stream, S: StreamSink> Split<T, S> {
     }
 }
 
-impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
+impl<T: Stream, S: Sink> Stream for Split<T, S> {
     fn inner_ref(&self) -> Option<&dyn Stream> {
         Some(&self.stream)
     }
@@ -87,12 +87,12 @@ impl<T: Stream, S: StreamSink> Stream for Split<T, S> {
 #[cfg(test)]
 pub mod tests {
     use crate::dev_util::load_example;
-    use crate::stream::{AnyArtifact, void::consume};
     use crate::stream::buffer::Buffer;
     use crate::stream::channel::stream_channel;
     use crate::stream::log::Log;
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
+    use crate::stream::{void::consume, AnyArtifact};
 
     use super::*;
 

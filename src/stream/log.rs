@@ -3,9 +3,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::Result;
-use crate::stream::{Component, Event, Meta, StreamSink, Trace, Attributes, AttributeValue, ComponentType};
 use crate::stream::buffer::Buffer;
+use crate::stream::{
+    AttributeValue, Attributes, Component, ComponentType, Event, Meta, Sink, Trace,
+};
+use crate::Result;
 
 /// Represents information that is related to a specific process
 ///
@@ -70,7 +72,7 @@ impl Attributes for Log {
     }
 }
 
-impl StreamSink for Log {
+impl Sink for Log {
     fn on_component(&mut self, component: Component) -> Result<()> {
         match component {
             Component::Meta(meta) => self.meta = meta,

@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::error::{Error, Result};
-use crate::stream::{Component, ResOpt, Stream, StreamSink};
+use crate::stream::{Component, ResOpt, Sink, Stream};
 
 /// Consumes a stream and stores it in memory for further processing.
 ///
@@ -43,7 +43,7 @@ impl Stream for Buffer {
     }
 }
 
-impl StreamSink for Buffer {
+impl Sink for Buffer {
     fn on_component(&mut self, component: Component) -> Result<()> {
         self.buffer.push_back(Ok(Some(component)));
         Ok(())

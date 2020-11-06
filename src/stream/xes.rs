@@ -23,7 +23,7 @@
 //! This example illustrates how to serialize XES XML from a string and deserialize it to stdout.
 //! ```
 //! use std::io;
-//! use promi::stream::StreamSink;
+//! use promi::stream::Sink;
 //! use promi::stream::xes;
 //!
 //! let s = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -51,21 +51,21 @@ use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::io;
 
-use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
 use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
+use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
 
-use crate::{DateTime, Error, Result};
-use crate::stream::{
-    Attribute, AttributeValue, ClassifierDecl, Component, Event, ExtensionDecl, Global, Meta,
-    ResOpt, Scope, Stream, StreamSink, Trace,
-};
 use crate::stream::log::Log;
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
+use crate::stream::{
+    Attribute, AttributeValue, ClassifierDecl, Component, Event, ExtensionDecl, Global, Meta,
+    ResOpt, Scope, Sink, Stream, Trace,
+};
+use crate::{DateTime, Error, Result};
 
 #[derive(Debug)]
 enum XesComponent {
@@ -659,7 +659,7 @@ impl<W: io::Write> XesWriter<W> {
     }
 }
 
-impl<W: io::Write + Send> StreamSink for XesWriter<W> {
+impl<W: io::Write + Send> Sink for XesWriter<W> {
     fn on_open(&mut self) -> Result<()> {
         // XML declaration
         let declaration = QxBytesDecl::new(b"1.0", Some(b"UTF-8"), None);
@@ -672,12 +672,12 @@ impl<W: io::Write + Send> StreamSink for XesWriter<W> {
             " For log storage and management, see http://www.xes-standard.org. ",
             " promi is available at https://crates.io/crates/promi ",
         ]
-            .iter()
-            .map(|s| {
-                self.writer
-                    .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
-            })
-            .collect::<QxResult<()>>()?;
+        .iter()
+        .map(|s| {
+            self.writer
+                .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
+        })
+        .collect::<QxResult<()>>()?;
 
         // write contents
         let tag = b"log";

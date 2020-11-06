@@ -11,7 +11,7 @@ use simple_logger::SimpleLogger;
 
 use crate::stream::buffer::Buffer;
 use crate::stream::xes::XesReader;
-use crate::stream::{AnyArtifact, ResOpt, Stream, StreamSink};
+use crate::stream::{AnyArtifact, ResOpt, Sink, Stream};
 use crate::{Error, Result};
 
 static LOGGER: Once = Once::new();

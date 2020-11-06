@@ -523,10 +523,10 @@ impl<'a> Stream for Box<dyn Stream + 'a> {
 /// Stream endpoint
 ///
 /// A stream sink acts as an endpoint for an extensible event stream and is usually used when a
-/// stream is converted into different representation. If that's not intended, the `consume`
+/// stream is converted into different representation. If that's not intended, the `void::consume`
 /// function is a good shortcut. It simply discards the stream's contents.
 ///
-pub trait StreamSink: Send {
+pub trait Sink: Send {
     /// Optional callback  that is invoked when the stream is opened
     fn on_open(&mut self) -> Result<()> {
         Ok(())
@@ -578,12 +578,12 @@ pub trait StreamSink: Send {
 
         // collect artifacts
         let mut artifacts = Stream::emit_artifacts(stream)?;
-        artifacts.push(StreamSink::on_emit_artifacts(self)?);
+        artifacts.push(Sink::on_emit_artifacts(self)?);
         Ok(artifacts)
     }
 }
 
-impl<'a> StreamSink for Box<dyn StreamSink + 'a> {
+impl<'a> Sink for Box<dyn Sink + 'a> {
     fn on_open(&mut self) -> Result<()> {
         self.as_mut().on_open()
     }
@@ -641,7 +641,7 @@ mod tests {
         }
     }
 
-    impl StreamSink for TestSink {
+    impl Sink for TestSink {
         fn on_open(&mut self) -> Result<()> {
             self.ct_open += 1;
             Ok(())

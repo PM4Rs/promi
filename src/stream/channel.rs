@@ -10,7 +10,7 @@ use std::sync::mpsc::{
 };
 
 use crate::error::{Error, Result};
-use crate::stream::{Component, ResOpt, Stream, StreamSink};
+use crate::stream::{Component, ResOpt, Sink, Stream};
 
 trait ChannelSender<T> {
     fn send_t(&self, t: T) -> Result<()>;
@@ -74,7 +74,7 @@ pub fn channel<T: Send + 'static>(bound: Option<usize>) -> Channel<T> {
 /// Represents the sending endpoint of a (synchronous) stream channel
 pub type StreamSender = Sender<ResOpt>;
 
-impl StreamSink for StreamSender {
+impl Sink for StreamSender {
     fn on_component(&mut self, component: Component) -> Result<()> {
         self.sender.send_t(Ok(Some(component)))?;
         Ok(())

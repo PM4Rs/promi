@@ -116,7 +116,7 @@ pub fn from_cnf<'a, T: Stream>(
 pub mod tests {
     use crate::stream::buffer::Buffer;
     use crate::stream::Component;
-    use crate::stream::StreamSink;
+    use crate::stream::Sink;
 
     use super::*;
 
@@ -153,7 +153,7 @@ pub mod tests {
         }
     }
 
-    impl StreamSink for Sequencer {
+    impl Sink for Sequencer {
         fn on_component(&mut self, component: Component) -> Result<()> {
             match component {
                 Component::Trace(trace) => {

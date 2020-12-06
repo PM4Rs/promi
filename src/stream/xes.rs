@@ -798,7 +798,6 @@ mod tests {
     use std::path::PathBuf;
     use std::process::{Command, Output, Stdio};
 
-    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::buffer::Buffer;
     use crate::stream::void::consume;
 
@@ -806,8 +805,7 @@ mod tests {
 
     fn deserialize_dir(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = open_buffered(&p.path());
-            let mut reader = XesReader::from(f);
+            let mut reader = XesReader::from(join_static_reader!(&p.path()));
             let result = consume(&mut reader);
 
             if expect_failure {
@@ -831,33 +829,33 @@ mod tests {
     // Parse files that comply with the standard.
     #[test]
     fn test_deserialize_correct() {
-        deserialize_dir(expand_static(&["xes", "correct"]), false);
+        deserialize_dir(join_static!("xes", "correct"), false);
     }
 
     // Parse files that technically don't comply with the standard but can be parsed safely.
     #[test]
     fn test_deserialize_recoverable() {
-        deserialize_dir(expand_static(&["xes", "recoverable"]), false);
+        deserialize_dir(join_static!("xes", "recoverable"), false);
     }
 
     // Import incorrect files, expecting Failure.
     #[test]
     fn test_deserialize_non_parsing() {
-        deserialize_dir(expand_static(&["xes", "non_parsing"]), true);
+        deserialize_dir(join_static!("xes", "non_parsing"), true);
     }
 
     // Import incorrect files that parse successfully. Most of these error classes can be caught by
     // XesValidator.
     #[test]
     fn test_deserialize_non_validating() {
-        deserialize_dir(expand_static(&["xes", "non_validating"]), false);
+        deserialize_dir(join_static!("xes", "non_validating"), false);
     }
 
     fn validate_xes(xes: &[u8]) -> Output {
         let mut child = Command::new("xmllint")
             .arg("--noout")
             .arg("--schema")
-            .arg(expand_static(&["xes", "xes-ieee-1849-2016.xsd"]))
+            .arg(join_static!("xes", "xes-ieee-1849-2016.xsd"))
             .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -871,10 +869,11 @@ mod tests {
 
     fn validate_dir(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = open_buffered(&p.path());
             let mut buffer = Buffer::default();
 
-            buffer.consume(&mut XesReader::from(f)).unwrap();
+            buffer
+                .consume(&mut XesReader::from(join_static_reader!(&p.path())))
+                .unwrap();
 
             // serialize to XML
             let bytes: Vec<u8> = Vec::new();
@@ -894,17 +893,18 @@ mod tests {
     // This test requires `xmllint` to be available in path.
     #[test]
     fn test_serialize_syntax() {
-        validate_dir(expand_static(&["xes", "correct"]));
-        validate_dir(expand_static(&["xes", "recoverable"]));
+        validate_dir(join_static!("xes", "correct"));
+        validate_dir(join_static!("xes", "recoverable"));
     }
 
     fn serde_loop_dir(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
-            let f = open_buffered(&p.path());
             let mut buffer = Buffer::default();
             let mut snapshots: Vec<Vec<u8>> = Vec::new();
 
-            buffer.consume(&mut XesReader::from(f)).unwrap();
+            buffer
+                .consume(&mut XesReader::from(join_static_reader!(&p.path())))
+                .unwrap();
 
             for _ in 0..2 {
                 // serialize to XML
@@ -933,7 +933,7 @@ mod tests {
     // semantics.
     #[test]
     fn test_serialize_semantics() {
-        serde_loop_dir(expand_static(&["xes", "correct"]));
-        serde_loop_dir(expand_static(&["xes", "recoverable"]));
+        serde_loop_dir(join_static!("xes", "correct"));
+        serde_loop_dir(join_static!("xes", "recoverable"));
     }
 }

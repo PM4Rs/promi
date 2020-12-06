@@ -357,7 +357,6 @@ mod tests {
     use std::path::PathBuf;
     use std::thread;
 
-    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::observer::Handler;
     use crate::stream::stats::{Statistics, StatsCollector};
     use crate::stream::{duplicator::Duplicator, void::consume, xes::XesReader, AnyArtifact};
@@ -390,8 +389,7 @@ mod tests {
         });
 
         // pipeline for main thread: file > XesReader > Duplicator > Duplicator > Counter
-        let f = open_buffered(&path);
-        let reader = XesReader::from(f);
+        let reader = XesReader::from(join_static_reader!(&path));
         let d_t1 = Duplicator::new(reader, s_t0_t1);
         let d_t2 = Duplicator::new(d_t1, s_t0_t2);
 
@@ -440,30 +438,30 @@ mod tests {
 
     #[test]
     fn test_channel() {
-        let param = [
-            ("book", "L1.xes"),
-            ("book", "L2.xes"),
-            ("book", "L3.xes"),
-            ("book", "L4.xes"),
-            ("book", "L5.xes"),
-            ("correct", "log_correct_attributes.xes"),
-            ("correct", "event_correct_attributes.xes"),
+        let param = vec![
+            join_static!("xes", "book", "L1.xes"),
+            join_static!("xes", "book", "L2.xes"),
+            join_static!("xes", "book", "L3.xes"),
+            join_static!("xes", "book", "L4.xes"),
+            join_static!("xes", "book", "L5.xes"),
+            join_static!("xes", "correct", "log_correct_attributes.xes"),
+            join_static!("xes", "correct", "event_correct_attributes.xes"),
         ];
 
-        for (d, f) in param.iter() {
-            _test_channel(expand_static(&["xes", d, f]), false);
+        for path in param {
+            _test_channel(path, false);
         }
 
-        let param = [
-            ("non_parsing", "boolean_incorrect_value.xes"),
-            ("non_parsing", "broken_xml.xes"),
-            ("non_parsing", "element_incorrect.xes"),
-            ("non_parsing", "no_log.xes"),
-            ("non_parsing", "global_incorrect_scope.xes"),
+        let param = vec![
+            join_static!("xes", "non_parsing", "boolean_incorrect_value.xes"),
+            join_static!("xes", "non_parsing", "broken_xml.xes"),
+            join_static!("xes", "non_parsing", "element_incorrect.xes"),
+            join_static!("xes", "non_parsing", "no_log.xes"),
+            join_static!("xes", "non_parsing", "global_incorrect_scope.xes"),
         ];
 
-        for (d, f) in param.iter() {
-            _test_channel(expand_static(&["xes", d, f]), true);
+        for path in param {
+            _test_channel(path, true);
         }
     }
 

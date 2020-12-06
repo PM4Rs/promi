@@ -223,7 +223,6 @@ impl<I: Stream, H: Handler> Stream for Observer<I, H> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::{void::consume, xes::XesReader};
 
     use super::*;
@@ -285,8 +284,7 @@ mod tests {
     }
 
     fn _test_observer(path: PathBuf, counts: &[usize; 4], filter: bool) {
-        let f = open_buffered(&path);
-        let reader = XesReader::from(f);
+        let reader = XesReader::from(join_static_reader!(&path));
         let mut observer = Observer::new(reader);
 
         observer.register(TestHandler::new(filter));
@@ -305,62 +303,73 @@ mod tests {
 
     #[test]
     fn test_observer_handling() {
-        let param = [
-            ("book", "L1.xes", [1, 6, 23, 23]),
-            ("book", "L2.xes", [1, 13, 80, 80]),
-            ("book", "L3.xes", [1, 4, 39, 39]),
-            ("book", "L4.xes", [1, 147, 441, 441]),
-            ("book", "L5.xes", [1, 14, 92, 92]),
-            ("correct", "log_correct_attributes.xes", [1, 0, 0, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 1, 4, 2]),
+        let param = vec![
+            (join_static!("xes", "book", "L1.xes"), [1, 6, 23, 23]),
+            (join_static!("xes", "book", "L2.xes"), [1, 13, 80, 80]),
+            (join_static!("xes", "book", "L3.xes"), [1, 4, 39, 39]),
+            (join_static!("xes", "book", "L4.xes"), [1, 147, 441, 441]),
+            (join_static!("xes", "book", "L5.xes"), [1, 14, 92, 92]),
+            (
+                join_static!("xes", "correct", "log_correct_attributes.xes"),
+                [1, 0, 0, 0],
+            ),
+            (
+                join_static!("xes", "correct", "event_correct_attributes.xes"),
+                [1, 1, 4, 2],
+            ),
         ];
 
-        for (d, f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", d, f]), counts, false)
+        for (path, counts) in param {
+            _test_observer(path, &counts, false)
         }
     }
 
     #[test]
     fn test_observer_filtering() {
-        let param = [
-            ("book", "L1.xes", [1, 3, 6, 6]),
-            ("book", "L2.xes", [1, 6, 18, 18]),
-            ("book", "L3.xes", [1, 2, 6, 6]),
-            ("book", "L4.xes", [1, 73, 109, 109]),
-            ("book", "L5.xes", [1, 7, 23, 23]),
-            ("correct", "log_correct_attributes.xes", [1, 0, 0, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 0, 1, 0]),
+        let param = vec![
+            (join_static!("xes", "book", "L1.xes"), [1, 3, 6, 6]),
+            (join_static!("xes", "book", "L2.xes"), [1, 6, 18, 18]),
+            (join_static!("xes", "book", "L3.xes"), [1, 2, 6, 6]),
+            (join_static!("xes", "book", "L4.xes"), [1, 73, 109, 109]),
+            (join_static!("xes", "book", "L5.xes"), [1, 7, 23, 23]),
+            (
+                join_static!("xes", "correct", "log_correct_attributes.xes"),
+                [1, 0, 0, 0],
+            ),
+            (
+                join_static!("xes", "correct", "event_correct_attributes.xes"),
+                [1, 0, 1, 0],
+            ),
         ];
 
-        for (d, f, counts) in param.iter() {
-            _test_observer(expand_static(&["xes", d, f]), counts, true)
+        for (path, counts) in param {
+            _test_observer(path, &counts, true)
         }
     }
 
     #[test]
     fn test_observer_order_validation() {
-        let names = [
-            ("non_parsing", "misplaced_extension_event.xes"),
-            ("non_parsing", "misplaced_extension_trace.xes"),
-            ("non_parsing", "misplaced_global_event.xes"),
-            ("non_parsing", "misplaced_classifier_event.xes"),
-            ("non_parsing", "misplaced_attribute_event.xes"),
-            ("non_parsing", "misplaced_classifier_trace.xes"),
-            ("non_parsing", "misplaced_attribute_trace.xes"),
-            ("non_parsing", "misplaced_global_trace.xes"),
-            ("non_validating", "misplaced_trace_event.xes"),
+        let paths = vec![
+            join_static!("xes", "non_parsing", "misplaced_extension_event.xes"),
+            join_static!("xes", "non_parsing", "misplaced_extension_trace.xes"),
+            join_static!("xes", "non_parsing", "misplaced_global_event.xes"),
+            join_static!("xes", "non_parsing", "misplaced_classifier_event.xes"),
+            join_static!("xes", "non_parsing", "misplaced_attribute_event.xes"),
+            join_static!("xes", "non_parsing", "misplaced_classifier_trace.xes"),
+            join_static!("xes", "non_parsing", "misplaced_attribute_trace.xes"),
+            join_static!("xes", "non_parsing", "misplaced_global_trace.xes"),
+            join_static!("xes", "non_validating", "misplaced_trace_event.xes"),
         ];
 
-        for (d, n) in names.iter() {
-            let f = open_buffered(&expand_static(&["xes", d, n]));
-            let reader = XesReader::from(f);
+        for path in paths {
+            let reader = XesReader::from(join_static_reader!(&path));
             let mut observer = Observer::new(reader);
 
             observer.register(TestHandler::new(false));
 
             assert!(
                 consume(&mut observer).is_err(),
-                format!("expected state error: {:?}", n)
+                format!("expected state error: {:?}", path)
             )
         }
     }

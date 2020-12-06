@@ -51,6 +51,7 @@ extern crate thiserror;
 pub use error::{Error, Result};
 
 #[cfg(test)]
+#[macro_use]
 pub mod dev_util;
 pub mod error;
 pub mod stream;

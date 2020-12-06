@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, Once};
 
 use log::LevelFilter;
@@ -25,25 +25,54 @@ pub fn logging() {
     });
 }
 
-/// Access assets
+/// Path to static asset
 ///
 /// For developing promi it's useful to work with some test files that are located in `/static`.
 /// In order to locate these in your system, this function exists. It takes a list of relative
 /// location descriptors and expands them to an absolute path.
 ///
-pub fn expand_static(path: &[&str]) -> PathBuf {
-    let mut exp = Path::new(env!("CARGO_MANIFEST_DIR")).join("static");
-
-    for p in path.iter() {
-        exp = exp.join(p);
-    }
-
-    exp
+#[macro_export]
+macro_rules! join_static {
+    ($first:expr $(, $further:expr)* $(,)?) => {
+        {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("static")
+                .join($first)
+                $(.join($further))*
+        }
+    };
 }
 
-/// Open a file as `io::BufReader`
-pub fn open_buffered(path: &Path) -> io::BufReader<File> {
-    io::BufReader::new(File::open(&path).unwrap_or_else(|_| panic!("No such file {:?}", &path)))
+/// Like [`join_static`] but returns a [`String`]
+#[macro_export]
+macro_rules! join_static_str {
+    ($first:expr $(, $further:expr)* $(,)?) => {
+        {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("static")
+                .join($first)
+                $(.join($further))*
+                .to_str()
+                .unwrap()
+                .into()
+        }
+    };
+}
+
+/// Like [`join_static`] but returns a [`std::io::BufReader`]
+#[macro_export]
+macro_rules! join_static_reader {
+    ($first:expr $(, $further:expr)* $(,)?) => {
+        {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("static")
+                .join($first)
+                $(.join($further))*;
+
+            std::io::BufReader::new(std::fs::File::open(&path)
+                .unwrap_or_else(|_| panic!("No such file {:?}", &path)))
+        }
+    };
 }
 
 /// Stream that fails on purpose after any number of components or while emitting artifacts

@@ -95,7 +95,6 @@ impl PluginProvider for Duplicator<Box<dyn Stream>, Box<dyn Sink>> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::dev_util::{expand_static, open_buffered};
     use crate::stream::tests::TestSink;
     use crate::stream::xes::XesReader;
     use crate::stream::Sink;
@@ -103,8 +102,7 @@ mod tests {
     use super::*;
 
     fn _test_sink_duplicator(path: PathBuf, counts: &[usize; 4], expect_error: bool) {
-        let f = open_buffered(&path);
-        let reader = XesReader::from(f);
+        let reader = XesReader::from(join_static_reader!(&path));
         let sink_1 = TestSink::default();
         let mut sink_2 = TestSink::default();
         let mut duplicator = Duplicator::new(reader, sink_1);
@@ -119,30 +117,51 @@ mod tests {
 
     #[test]
     fn test_sink_duplicator() {
-        let param = [
-            ("book", "L1.xes", [1, 7, 1, 0]),
-            ("book", "L2.xes", [1, 14, 1, 0]),
-            ("book", "L3.xes", [1, 5, 1, 0]),
-            ("book", "L4.xes", [1, 148, 1, 0]),
-            ("book", "L5.xes", [1, 15, 1, 0]),
-            ("correct", "log_correct_attributes.xes", [1, 1, 1, 0]),
-            ("correct", "event_correct_attributes.xes", [1, 4, 1, 0]),
+        let param = vec![
+            (join_static!("xes", "book", "L1.xes"), [1, 7, 1, 0]),
+            (join_static!("xes", "book", "L2.xes"), [1, 14, 1, 0]),
+            (join_static!("xes", "book", "L3.xes"), [1, 5, 1, 0]),
+            (join_static!("xes", "book", "L4.xes"), [1, 148, 1, 0]),
+            (join_static!("xes", "book", "L5.xes"), [1, 15, 1, 0]),
+            (
+                join_static!("xes", "correct", "log_correct_attributes.xes"),
+                [1, 1, 1, 0],
+            ),
+            (
+                join_static!("xes", "correct", "event_correct_attributes.xes"),
+                [1, 4, 1, 0],
+            ),
         ];
 
-        for (d, f, counts) in param.iter() {
-            _test_sink_duplicator(expand_static(&["xes", d, f]), counts, false);
+        for (path, counts) in param {
+            _test_sink_duplicator(path, &counts, false);
         }
 
-        let param = [
-            ("non_parsing", "boolean_incorrect_value.xes", [1, 0, 0, 1]),
-            ("non_parsing", "broken_xml.xes", [1, 6, 0, 1]),
-            ("non_parsing", "element_incorrect.xes", [1, 0, 0, 1]),
-            ("non_parsing", "no_log.xes", [1, 0, 0, 1]),
-            ("non_parsing", "global_incorrect_scope.xes", [1, 0, 0, 1]),
+        let param = vec![
+            (
+                join_static!("xes", "non_parsing", "boolean_incorrect_value.xes"),
+                [1, 0, 0, 1],
+            ),
+            (
+                join_static!("xes", "non_parsing", "broken_xml.xes"),
+                [1, 6, 0, 1],
+            ),
+            (
+                join_static!("xes", "non_parsing", "element_incorrect.xes"),
+                [1, 0, 0, 1],
+            ),
+            (
+                join_static!("xes", "non_parsing", "no_log.xes"),
+                [1, 0, 0, 1],
+            ),
+            (
+                join_static!("xes", "non_parsing", "global_incorrect_scope.xes"),
+                [1, 0, 0, 1],
+            ),
         ];
 
-        for (d, f, counts) in param.iter() {
-            _test_sink_duplicator(expand_static(&["xes", d, f]), counts, true);
+        for (path, counts) in param {
+            _test_sink_duplicator(path, &counts, true);
         }
     }
 }

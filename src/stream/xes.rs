@@ -61,7 +61,7 @@ use quick_xml::events::{
 use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
 
 use crate::stream::log::Log;
-use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
@@ -734,15 +734,15 @@ impl<W: io::Write> XesWriter<W> {
 }
 
 /// Dummy struct for XES Plugins
-pub struct XesPlugins;
+pub struct XesPluginProvider;
 
-impl Plugin for XesPlugins {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for XesPluginProvider {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
         vec![
-            RegistryEntry::new(
+            Entry::new(
                 "XesReader",
                 "Parse the XES format from a file",
                 Factory::new(
@@ -759,7 +759,7 @@ impl Plugin for XesPlugins {
                     })),
                 ),
             ),
-            RegistryEntry::new(
+            Entry::new(
                 "XesWriter",
                 "Render the stream into the XES format",
                 Factory::new(

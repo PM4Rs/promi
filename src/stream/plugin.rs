@@ -1,3 +1,6 @@
+//! Extensible mechanism to dynamically instantiate event streams
+//!
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -9,57 +12,65 @@ use crate::stream::split::Split;
 use crate::stream::stats::StatsCollector;
 use crate::stream::validator::Validator;
 use crate::stream::void::Void;
-use crate::stream::xes::XesPlugins;
+use crate::stream::xes::XesPluginProvider;
 use crate::stream::{AnyArtifact, AttributeValue, Sink, Stream};
 use crate::{Error, Result};
 
 pub type AttrMap = HashMap<String, AttributeValue>;
 
+/// Parametrisation for [`StreamFactory`] and ['SinkFactory']
 pub struct Parameters<'a> {
     attributes: AttrMap,
     artifacts: HashMap<String, &'a mut AnyArtifact>,
-    artifacts_extra: Vec<&'a mut AnyArtifact>,
+    artifacts_anon: Vec<&'a mut AnyArtifact>,
     streams: HashMap<String, Box<dyn Stream + 'a>>,
-    streams_extra: Vec<Box<dyn Stream + 'a>>,
+    streams_anon: Vec<Box<dyn Stream + 'a>>,
     sinks: HashMap<String, Box<dyn Sink + 'a>>,
-    sinks_extra: Vec<Box<dyn Sink + 'a>>,
+    sinks_anon: Vec<Box<dyn Sink + 'a>>,
 }
 
 impl<'a> Parameters<'a> {
+    /// Try to acquire an attribute by name
     pub fn acquire_attribute(&mut self, key: &str) -> Result<AttributeValue> {
         self.attributes
             .remove(key)
             .ok_or_else(|| Error::StreamError(format!("no attribute {:?}", key)))
     }
 
+    /// Try to acquire an artifact by name
     pub fn acquire_artifact(&mut self, key: &str) -> Result<&'a mut AnyArtifact> {
         self.artifacts
             .remove(key)
             .ok_or_else(|| Error::StreamError(format!("no artifact {:?}", key)))
     }
 
-    pub fn acquire_artifact_extra(&mut self) -> Vec<&'a mut AnyArtifact> {
-        self.artifacts_extra.drain(..).collect()
+    /// Acquire anonymous artifacts
+    pub fn acquire_artifacts_anon(&mut self) -> Vec<&'a mut AnyArtifact> {
+        self.artifacts_anon.drain(..).collect()
     }
 
+    /// Try to acquire a stream by name
     pub fn acquire_stream(&mut self, key: &str) -> Result<Box<dyn Stream + 'a>> {
         self.streams
             .remove(key)
             .ok_or_else(|| Error::StreamError(format!("no stream {:?}", key)))
     }
 
-    pub fn acquire_stream_extra(&mut self) -> Vec<Box<dyn Stream + 'a>> {
-        self.streams_extra.drain(..).collect()
+    /// Acquire anonymous streams
+    pub fn acquire_streams_anon(&mut self) -> Vec<Box<dyn Stream + 'a>> {
+        self.streams_anon.drain(..).collect()
     }
 
+    /// Try to acquire a sink by name
     pub fn acquire_sink(&mut self, key: &str) -> Result<Box<dyn Sink + 'a>> {
         self.sinks
             .remove(key)
             .ok_or_else(|| Error::StreamError(format!("no sink {:?}", key)))
     }
 
-    pub fn acquire_sink_extra(&mut self) -> Vec<Box<dyn Sink + 'a>> {
-        self.sinks_extra.drain(..).collect()
+    /// Acquire anonymous sinks
+    pub fn acquire_sinks_anon(&mut self) -> Vec<Box<dyn Sink + 'a>> {
+        self.sinks_anon.drain(..).collect()
     }
 
     fn warn_non_empty(&self) {
@@ -68,23 +79,28 @@ impl<'a> Parameters<'a> {
             warn!("{} attributes remain unused", remaining_attributes)
         }
 
-        let remaining_artifacts = self.artifacts.len() + self.artifacts_extra.len();
+        let remaining_artifacts = self.artifacts.len() + self.artifacts_anon.len();
         if remaining_artifacts > 0 {
             warn!("{} artifacts remain unused", remaining_artifacts)
         }
 
-        let remaining_streams = self.streams.len() + self.streams_extra.len();
+        let remaining_streams = self.streams.len() + self.streams_anon.len();
         if remaining_streams > 0 {
             warn!("{} streams remain unused", remaining_streams)
         }
 
-        let remaining_sinks = self.sinks.len() + self.sinks_extra.len();
+        let remaining_sinks = self.sinks.len() + self.sinks_anon.len();
         if remaining_sinks > 0 {
             warn!("{} sinks remain unused", remaining_sinks)
         }
     }
 }
 
+/// Parameter declaration
+///
+/// A parameter declaration holds information about which parameters a [`StreamFactory`] or
+/// [`SinkFactory`] expects. It is used by a [`Factory`] for naming, validation and documentation.
+///
 #[derive(Debug, Clone)]
 pub struct Declaration {
     attributes: Vec<(String, String, Option<AttributeValue>)>,
@@ -105,12 +121,14 @@ impl Default for Declaration {
 }
 
 impl Declaration {
+    /// Register attribute
     pub fn attribute<S: Into<String>, D: Into<String>>(mut self, name: S, description: D) -> Self {
         self.attributes
             .push((name.into(), description.into(), None));
         self
     }
 
+    /// Register attribute with default value
     pub fn default_attr<S: Into<String>, D: Into<String>>(
         mut self,
         name: S,
@@ -122,16 +140,19 @@ impl Declaration {
         self
     }
 
+    /// Register artifact
     pub fn artifact<S: Into<String>, D: Into<String>>(mut self, name: S, description: D) -> Self {
         self.artifacts.push((name.into(), description.into()));
         self
     }
 
+    /// Register stream
     pub fn stream<S: Into<String>, D: Into<String>>(mut self, name: S, description: D) -> Self {
         self.streams.push((name.into(), description.into()));
         self
     }
 
+    /// Register sink
     pub fn sink<S: Into<String>, D: Into<String>>(mut self, name: S, description: D) -> Self {
         self.sinks.push((name.into(), description.into()));
         self
@@ -197,31 +218,36 @@ impl Declaration {
         Ok(Parameters {
             attributes: attribute_map,
             artifacts: artifact_map,
-            artifacts_extra: artifacts.collect(),
+            artifacts_anon: artifacts.collect(),
             streams: stream_map,
-            streams_extra: streams.collect(),
+            streams_anon: streams.collect(),
             sinks: sink_map,
-            sinks_extra: sinks.collect(),
+            sinks_anon: sinks.collect(),
         })
     }
 }
 
+/// Function that turns [`Parameters`] into a [`Stream`] object
 pub type StreamFactory =
     Box<dyn for<'a> Fn(&mut Parameters<'a>) -> Result<Box<dyn Stream + 'a>> + Send>;
+/// Function that turns [`Parameters`] into a [`Sink`] object
 pub type SinkFactory =
     Box<dyn for<'a> Fn(&mut Parameters<'a>) -> Result<Box<dyn Sink + 'a>> + Send>;
 
+/// [`StreamFactory`] or [`SinkFactory`]
 pub enum FactoryType {
     Stream(StreamFactory),
     Sink(SinkFactory),
 }
 
+/// Holds [`Declaration`] and [`Factory`]
 pub struct Factory {
     declaration: Declaration,
     factory: FactoryType,
 }
 
 impl Factory {
+    /// Create a new factory
     pub fn new(declaration: Declaration, factory: FactoryType) -> Self {
         Self {
             declaration,
@@ -229,6 +255,7 @@ impl Factory {
         }
     }
 
+    /// Try to build a [`Stream`] object
     pub fn build_stream<'a>(
         &self,
         attributes: AttrMap,
@@ -249,6 +276,7 @@ impl Factory {
         }
     }
 
+    /// Try to build a [`Sink`] object
     pub fn build_sink<'a>(
         &self,
         attributes: AttrMap,
@@ -270,8 +298,13 @@ impl Factory {
     }
 }
 
-pub trait Plugin {
-    fn entries() -> Vec<RegistryEntry>
+/// Interfacing with the stream registry
+///
+/// Implementors provide factories to instantiate themselves. In order to be globally available,
+/// every implementor needs to be added to [`struct@REGISTRY`].
+///
+pub trait PluginProvider {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized;
 
@@ -299,13 +332,14 @@ pub trait Plugin {
     }
 }
 
-pub struct RegistryEntry {
+/// Registry entry
+pub struct Entry {
     name: String,
     description: String,
     pub factory: Factory,
 }
 
-impl RegistryEntry {
+impl Entry {
     pub fn new<N: Into<String>, D: Into<String>>(
         name: N,
         description: D,
@@ -319,7 +353,8 @@ impl RegistryEntry {
     }
 }
 
-pub type Registry = HashMap<String, RegistryEntry>;
+/// Registry type
+pub type Registry = HashMap<String, Entry>;
 
 lazy_static! {
     /// The default stream registry
@@ -333,12 +368,13 @@ lazy_static! {
         Split::register_at(&mut registry);
         StreamSender::register_at(&mut registry);
         StreamReceiver::register_at(&mut registry);
-        XesPlugins::register_at(&mut registry);
+        XesPluginProvider::register_at(&mut registry);
 
         Mutex::new(registry)
     };
 }
 
+/// List all installed plugins via logger
 pub fn log_plugins() -> Result<()> {
     let registry = REGISTRY
         .lock()
@@ -478,9 +514,9 @@ mod tests {
         assert!(parameters.acquire_stream("bar").is_ok());
         assert!(parameters.acquire_sink("foo").is_ok());
         assert!(parameters.acquire_sink("bar").is_ok());
-        assert_eq!(parameters.acquire_artifact_extra().len(), 1);
-        assert_eq!(parameters.acquire_stream_extra().len(), 1);
-        assert_eq!(parameters.acquire_sink_extra().len(), 1);
+        assert_eq!(parameters.acquire_artifacts_anon().len(), 1);
+        assert_eq!(parameters.acquire_streams_anon().len(), 1);
+        assert_eq!(parameters.acquire_sinks_anon().len(), 1);
 
         parameters.warn_non_empty();
 
@@ -493,9 +529,9 @@ mod tests {
         assert!(parameters.acquire_stream("bar").is_err());
         assert!(parameters.acquire_sink("foo").is_err());
         assert!(parameters.acquire_sink("bar").is_err());
-        assert_eq!(parameters.acquire_artifact_extra().len(), 0);
-        assert_eq!(parameters.acquire_stream_extra().len(), 0);
-        assert_eq!(parameters.acquire_sink_extra().len(), 0);
+        assert_eq!(parameters.acquire_artifacts_anon().len(), 0);
+        assert_eq!(parameters.acquire_streams_anon().len(), 0);
+        assert_eq!(parameters.acquire_sinks_anon().len(), 0);
     }
 
     #[test]

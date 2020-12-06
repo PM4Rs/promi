@@ -10,7 +10,7 @@ use std::sync::mpsc::{
 };
 
 use crate::error::{Error, Result};
-use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::{Component, ResOpt, Sink, Stream};
 
 trait ChannelSender<T> {
@@ -75,12 +75,12 @@ pub fn channel<T: Send + 'static>(bound: Option<usize>) -> Channel<T> {
 /// Represents the sending endpoint of a (synchronous) stream channel
 pub type StreamSender = Sender<ResOpt>;
 
-impl Plugin for StreamSender {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for StreamSender {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
-        vec![RegistryEntry::new(
+        vec![Entry::new(
             "Sender",
             "Sending stream channel endpoint",
             Factory::new(
@@ -113,12 +113,12 @@ impl Sink for StreamSender {
 /// Represents the receiving endpoint of a channel
 pub type StreamReceiver = Receiver<ResOpt>;
 
-impl Plugin for StreamReceiver {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for StreamReceiver {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
-        vec![RegistryEntry::new(
+        vec![Entry::new(
             "Receiver",
             "Receiving stream channel endpoint",
             Factory::new(

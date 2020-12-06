@@ -54,7 +54,7 @@ use std::mem;
 
 use crate::error::Result;
 use crate::stream::observer::Observer;
-use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Stream, Trace};
 
 /// Container for statistical data of an event stream
@@ -137,12 +137,12 @@ impl Handler for StatsCollector {
     }
 }
 
-impl Plugin for StatsCollector {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for StatsCollector {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
-        vec![RegistryEntry::new(
+        vec![Entry::new(
             "Statistics",
             "Compute basic statistics of an event stream",
             Factory::new(

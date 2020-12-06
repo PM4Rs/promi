@@ -8,7 +8,7 @@
 
 use crate::stream::extension::REGISTRY;
 use crate::stream::observer::{Handler, Observer};
-use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::xml_util::CRE_NCNAME;
 use crate::stream::{Attributes, Event, Meta, Scope, Stream, Trace};
 use crate::{Error, Result};
@@ -32,12 +32,12 @@ impl Default for Validator {
     }
 }
 
-impl Plugin for Validator {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for Validator {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
-        vec![RegistryEntry::new(
+        vec![Entry::new(
             "Validator",
             "Validate stream semantics",
             Factory::new(

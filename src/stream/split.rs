@@ -3,7 +3,7 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::void::Void;
 use crate::stream::{AnyArtifact, AttributeValue, Component, ResOpt, Sink, Stream};
 use crate::Result;
@@ -86,13 +86,13 @@ impl<T: Stream, S: Sink> Stream for Split<T, S> {
     }
 }
 
-impl Plugin for Split<Box<dyn Stream>, Box<dyn Sink>> {
-    fn entries() -> Vec<RegistryEntry>
+impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
+    fn entries() -> Vec<Entry>
     where
         Self: Sized,
     {
         vec![
-            RegistryEntry::new(
+            Entry::new(
                 "Split",
                 "Split stream into two new ones at random",
                 Factory::new(
@@ -115,7 +115,7 @@ impl Plugin for Split<Box<dyn Stream>, Box<dyn Sink>> {
                     })),
                 ),
             ),
-            RegistryEntry::new(
+            Entry::new(
                 "Sample",
                 "Sample from a stream",
                 Factory::new(

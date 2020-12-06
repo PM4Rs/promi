@@ -8,6 +8,7 @@ use serde::export::fmt::Debug;
 
 use crate::stream::channel::{StreamReceiver, StreamSender};
 use crate::stream::duplicator::Duplicator;
+use crate::stream::repair::Repair;
 use crate::stream::split::Split;
 use crate::stream::stats::StatsCollector;
 use crate::stream::validator::Validator;
@@ -365,6 +366,7 @@ lazy_static! {
         Duplicator::register_at(&mut registry);
         StatsCollector::register_at(&mut registry);
         Validator::register_at(&mut registry);
+        Repair::register_at(&mut registry);
         Split::register_at(&mut registry);
         StreamSender::register_at(&mut registry);
         StreamReceiver::register_at(&mut registry);

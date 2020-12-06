@@ -30,6 +30,7 @@ pub mod filter;
 pub mod log;
 pub mod observer;
 pub mod plugin;
+pub mod repair;
 pub mod split;
 pub mod stats;
 pub mod validator;

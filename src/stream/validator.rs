@@ -7,8 +7,10 @@
 //!
 
 use crate::stream::extension::REGISTRY;
-use crate::stream::observer::Handler;
-use crate::stream::{Attributes, Event, Meta, Scope, Trace};
+use crate::stream::observer::{Handler, Observer};
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::xml_util::CRE_NCNAME;
+use crate::stream::{Attributes, Event, Meta, Scope, Stream, Trace};
 use crate::{Error, Result};
 
 pub type ValidatorFn = Box<dyn Fn(Box<&dyn Attributes>) -> Result<()> + Send>;
@@ -27,6 +29,27 @@ impl Default for Validator {
             trace_only: Vec::new(),
             event_only: Vec::new(),
         }
+    }
+}
+
+impl Plugin for Validator {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![RegistryEntry::new(
+            "Validator",
+            "Validate stream semantics",
+            Factory::new(
+                Declaration::default().stream("inner", "The stream to be validated"),
+                FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                    Ok(
+                        Observer::from((parameters.acquire_stream("inner")?, Validator::default()))
+                            .into_boxed(),
+                    )
+                })),
+            ),
+        )]
     }
 }
 
@@ -54,6 +77,16 @@ impl Handler for Validator {
             match global.scope {
                 Scope::Trace => self.trace_only.push(Box::new(move |x| global.validate(*x))),
                 Scope::Event => self.event_only.push(Box::new(move |x| global.validate(*x))),
+            }
+        }
+
+        // validate classifiers
+        for classifier_decl in meta.classifiers.iter() {
+            if !CRE_NCNAME.is_match(&classifier_decl.name) {
+                return Err(Error::ValidationError(format!(
+                    "classifier name {:?} is no valid xs:NCName",
+                    &classifier_decl.name
+                )));
             }
         }
 

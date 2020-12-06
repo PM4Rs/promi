@@ -49,7 +49,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
+use std::fs::File;
 use std::io;
+use std::io::{BufReader, BufWriter};
+use std::path::Path;
 
 use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
@@ -58,6 +61,7 @@ use quick_xml::events::{
 use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
 
 use crate::stream::log::Log;
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
 use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
@@ -657,6 +661,12 @@ impl<W: io::Write> XesWriter<W> {
 
         XesWriter { writer }
     }
+
+    pub fn new_no_indent(writer: W) -> Self {
+        XesWriter {
+            writer: QxWriter::new(writer),
+        }
+    }
 }
 
 impl<W: io::Write + Send> Sink for XesWriter<W> {
@@ -720,6 +730,63 @@ impl<W: io::Write> XesWriter<W> {
     /// Release the underlying writer
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
+    }
+}
+
+/// Dummy struct for XES Plugins
+pub struct XesPlugins;
+
+impl Plugin for XesPlugins {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![
+            RegistryEntry::new(
+                "XesReader",
+                "Parse the XES format from a file",
+                Factory::new(
+                    Declaration::default().attribute("path", "Location of the XES file"),
+                    FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                        let path = parameters
+                            .acquire_attribute("path")?
+                            .try_string()?
+                            .to_string();
+                        let file = File::open(&Path::new(&path))
+                            .map_err(|e| Error::StreamError(format!("{:?}", e)))?;
+                        let reader = BufReader::new(file);
+                        Ok(XesReader::from(reader).into_boxed())
+                    })),
+                ),
+            ),
+            RegistryEntry::new(
+                "XesWriter",
+                "Render the stream into the XES format",
+                Factory::new(
+                    Declaration::default()
+                        .attribute("path", "Location of the XES file")
+                        .default_attr("indent", "Indentation", AttributeValue::Int(0)),
+                    FactoryType::Sink(Box::new(|parameters| -> Result<Box<dyn Sink>> {
+                        let path = parameters
+                            .acquire_attribute("path")?
+                            .try_string()?
+                            .to_string();
+                        let file = File::create(&Path::new(&path))
+                            .map_err(|e| Error::StreamError(format!("{:?}", e)))?;
+                        let writer = BufWriter::new(file);
+                        let indent = parameters
+                            .acquire_attribute("indent")?
+                            .try_int()
+                            .map(|v| *v as usize)?;
+                        Ok(Box::new(if indent > 0 {
+                            XesWriter::new(writer, None, Some(indent))
+                        } else {
+                            XesWriter::new_no_indent(writer)
+                        }))
+                    })),
+                ),
+            ),
+        ]
     }
 }
 

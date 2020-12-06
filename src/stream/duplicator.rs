@@ -1,5 +1,6 @@
 //! Duplicate an event stream
 
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
 use crate::stream::{AnyArtifact, ResOpt, Sink, Stream};
 use crate::Result;
 
@@ -63,6 +64,30 @@ impl<T: Stream, S: Sink> Stream for Duplicator<T, S> {
 
     fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         self.sink.on_emit_artifacts()
+    }
+}
+
+impl Plugin for Duplicator<Box<dyn Stream>, Box<dyn Sink>> {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![RegistryEntry::new(
+            "Duplicator",
+            "Create an exact copy of an event stream",
+            Factory::new(
+                Declaration::default()
+                    .stream("inner", "The stream to be copied")
+                    .sink("copy", "The sink that consumes the copy"),
+                FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                    Ok(Duplicator::new(
+                        parameters.acquire_stream("inner")?,
+                        parameters.acquire_sink("copy")?,
+                    )
+                    .into_boxed())
+                })),
+            ),
+        )]
     }
 }
 

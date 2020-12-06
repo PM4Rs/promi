@@ -10,6 +10,7 @@ use std::sync::mpsc::{
 };
 
 use crate::error::{Error, Result};
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
 use crate::stream::{Component, ResOpt, Sink, Stream};
 
 trait ChannelSender<T> {
@@ -74,6 +75,24 @@ pub fn channel<T: Send + 'static>(bound: Option<usize>) -> Channel<T> {
 /// Represents the sending endpoint of a (synchronous) stream channel
 pub type StreamSender = Sender<ResOpt>;
 
+impl Plugin for StreamSender {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![RegistryEntry::new(
+            "Sender",
+            "Sending stream channel endpoint",
+            Factory::new(
+                Declaration::default().sink("emit", "The sending sink"),
+                FactoryType::Sink(Box::new(|parameters| -> Result<Box<dyn Sink>> {
+                    parameters.acquire_sink("emit")
+                })),
+            ),
+        )]
+    }
+}
+
 impl Sink for StreamSender {
     fn on_component(&mut self, component: Component) -> Result<()> {
         self.sender.send_t(Ok(Some(component)))?;
@@ -93,6 +112,24 @@ impl Sink for StreamSender {
 
 /// Represents the receiving endpoint of a channel
 pub type StreamReceiver = Receiver<ResOpt>;
+
+impl Plugin for StreamReceiver {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![RegistryEntry::new(
+            "Receiver",
+            "Receiving stream channel endpoint",
+            Factory::new(
+                Declaration::default().stream("acquire", "The stream to be received"),
+                FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                    parameters.acquire_stream("acquire")
+                })),
+            ),
+        )]
+    }
+}
 
 impl Stream for StreamReceiver {
     fn inner_ref(&self) -> Option<&dyn Stream> {
@@ -232,8 +269,8 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
 
         let mut senders = Vec::new();
-        for (key, (sender, _)) in self.channels.iter_mut() {
-            if let Ok(sender) = sender.take(generation) {
+        for (key, (entry, _)) in self.channels.iter_mut() {
+            if let Ok(sender) = entry.take(generation) {
                 senders.push((key.clone(), sender))
             }
         }
@@ -262,9 +299,9 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
 
         let mut receivers = Vec::new();
-        for (key, (_, receiver)) in self.channels.iter_mut() {
-            if let Ok(sender) = receiver.take(generation) {
-                receivers.push((key.clone(), sender))
+        for (key, (_, entry)) in self.channels.iter_mut() {
+            if let Ok(receiver) = entry.take(generation) {
+                receivers.push((key.clone(), receiver))
             }
         }
 

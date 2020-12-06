@@ -29,6 +29,7 @@ pub mod extension;
 pub mod filter;
 pub mod log;
 pub mod observer;
+pub mod plugin;
 pub mod split;
 pub mod stats;
 pub mod validator;
@@ -500,6 +501,14 @@ pub trait Stream: Send {
         artifacts.push(Stream::on_emit_artifacts(self)?);
         Ok(artifacts)
     }
+
+    /// Turn stream instance into trait object
+    fn into_boxed<'a>(self) -> Box<dyn Stream + 'a>
+    where
+        Self: Sized + 'a,
+    {
+        Box::new(self)
+    }
 }
 
 impl<'a> Stream for Box<dyn Stream + 'a> {
@@ -580,6 +589,14 @@ pub trait Sink: Send {
         let mut artifacts = Stream::emit_artifacts(stream)?;
         artifacts.push(Sink::on_emit_artifacts(self)?);
         Ok(artifacts)
+    }
+
+    /// Turn sink instance into trait object
+    fn into_boxed<'a>(self) -> Box<dyn Sink + 'a>
+    where
+        Self: Sized + 'a,
+    {
+        Box::new(self)
     }
 }
 

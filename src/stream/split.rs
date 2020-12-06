@@ -3,7 +3,9 @@
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
 
-use crate::stream::{AnyArtifact, Component, ResOpt, Sink, Stream};
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::void::Void;
+use crate::stream::{AnyArtifact, AttributeValue, Component, ResOpt, Sink, Stream};
 use crate::Result;
 
 /// Train-Test split
@@ -81,6 +83,61 @@ impl<T: Stream, S: Sink> Stream for Split<T, S> {
 
     fn on_emit_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         self.test_sink.on_emit_artifacts()
+    }
+}
+
+impl Plugin for Split<Box<dyn Stream>, Box<dyn Sink>> {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![
+            RegistryEntry::new(
+                "Split",
+                "Split stream into two new ones at random",
+                Factory::new(
+                    Declaration::default()
+                        .stream("inner", "The stream to be split")
+                        .sink("sink", "The sink that consumes one part of the stream")
+                        .attribute("ratio", "Share of events/traces that are kept")
+                        .default_attr("seed", "Optional seed", AttributeValue::Int(0)), // TODO random seed!
+                    FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                        Ok(Split::new(
+                            parameters.acquire_stream("inner")?,
+                            parameters.acquire_sink("sink")?,
+                            *parameters.acquire_attribute("ratio")?.try_float()?,
+                            match parameters.acquire_attribute("seed") {
+                                Ok(s) => Some(*(s.try_int()?) as u128),
+                                _ => None,
+                            },
+                        )
+                        .into_boxed())
+                    })),
+                ),
+            ),
+            RegistryEntry::new(
+                "Sample",
+                "Sample from a stream",
+                Factory::new(
+                    Declaration::default()
+                        .stream("inner", "The stream to be sampled from")
+                        .attribute("ratio", "Share of events/traces that are sampled")
+                        .default_attr("seed", "Optional seed", AttributeValue::Int(0)),
+                    FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                        Ok(Split::new(
+                            parameters.acquire_stream("inner")?,
+                            Void::default(),
+                            *parameters.acquire_attribute("ratio")?.try_float()?,
+                            match parameters.acquire_attribute("seed") {
+                                Ok(s) => Some(*(s.try_int()?) as u128),
+                                _ => None,
+                            },
+                        )
+                        .into_boxed())
+                    })),
+                ),
+            ),
+        ]
     }
 }
 

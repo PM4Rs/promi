@@ -1,6 +1,7 @@
 //! Dummy stream and / or sink.
 //!
 
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
 use crate::stream::{AnyArtifact, ResOpt, Sink, Stream};
 use crate::Result;
 
@@ -28,6 +29,32 @@ impl Stream for Void {
 }
 
 impl Sink for Void {}
+
+impl Plugin for Void {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![
+            RegistryEntry::new(
+                "VoidStream",
+                "A stream source that yields no items",
+                Factory::new(
+                    Declaration::default(),
+                    FactoryType::Stream(Box::new(|_| Ok(Box::new(Void::default())))),
+                ),
+            ),
+            RegistryEntry::new(
+                "VoidSink",
+                "A sink that discards all items",
+                Factory::new(
+                    Declaration::default(),
+                    FactoryType::Stream(Box::new(|_| Ok(Box::new(Void::default())))),
+                ),
+            ),
+        ]
+    }
+}
 
 /// Creates a dummy sink and consumes the given stream
 pub fn consume<T: Stream>(stream: &mut T) -> Result<Vec<Vec<AnyArtifact>>> {

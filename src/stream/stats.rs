@@ -53,7 +53,9 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::error::Result;
-use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Trace};
+use crate::stream::observer::Observer;
+use crate::stream::plugin::{Declaration, Factory, FactoryType, Plugin, RegistryEntry};
+use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Stream, Trace};
 
 /// Container for statistical data of an event stream
 #[derive(Debug, Clone, serde::Serialize)]
@@ -132,6 +134,28 @@ impl Handler for StatsCollector {
 
     fn release_artifacts(&mut self) -> Result<Vec<AnyArtifact>> {
         Ok(vec![mem::take(&mut self.statistics).into()])
+    }
+}
+
+impl Plugin for StatsCollector {
+    fn entries() -> Vec<RegistryEntry>
+    where
+        Self: Sized,
+    {
+        vec![RegistryEntry::new(
+            "Statistics",
+            "Compute basic statistics of an event stream",
+            Factory::new(
+                Declaration::default().stream("inner", "The stream to be analyzed"),
+                FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
+                    Ok(Observer::from((
+                        parameters.acquire_stream("inner")?,
+                        StatsCollector::default(),
+                    ))
+                    .into_boxed())
+                })),
+            ),
+        )]
     }
 }
 

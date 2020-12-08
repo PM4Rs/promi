@@ -29,7 +29,6 @@ pub mod extension;
 pub mod filter;
 pub mod log;
 pub mod observer;
-pub mod pipe;
 pub mod plugin;
 pub mod repair;
 pub mod split;

@@ -29,6 +29,7 @@ pub mod extension;
 pub mod filter;
 pub mod log;
 pub mod observer;
+pub mod pipe;
 pub mod plugin;
 pub mod repair;
 pub mod split;
@@ -147,7 +148,7 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    fn new<K: Into<String>>(key: K, attribute: AttributeValue) -> Attribute {
+    pub fn new<K: Into<String>>(key: K, attribute: AttributeValue) -> Attribute {
         Attribute {
             key: key.into(),
             value: attribute,

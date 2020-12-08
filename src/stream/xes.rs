@@ -872,7 +872,9 @@ mod tests {
             let mut buffer = Buffer::default();
             let mut reader = XesReader::from(join_static_reader!(&p.path()));
 
-            buffer.consume(&mut reader).unwrap_or_else(|_| panic!("unable to parse {:?}", p.path()));
+            buffer
+                .consume(&mut reader)
+                .unwrap_or_else(|_| panic!("unable to parse {:?}", p.path()));
 
             // serialize to XML
             let bytes: Vec<u8> = Vec::new();

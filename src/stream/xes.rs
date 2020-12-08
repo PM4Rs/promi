@@ -870,10 +870,9 @@ mod tests {
     fn validate_dir(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
             let mut buffer = Buffer::default();
+            let mut reader = XesReader::from(join_static_reader!(&p.path()));
 
-            buffer
-                .consume(&mut XesReader::from(join_static_reader!(&p.path())))
-                .unwrap();
+            buffer.consume(&mut reader).unwrap_or_else(|_| panic!("unable to parse {:?}", p.path()));
 
             // serialize to XML
             let bytes: Vec<u8> = Vec::new();

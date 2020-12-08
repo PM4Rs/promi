@@ -1,6 +1,6 @@
 on: [push, pull_request]
 
-name: Continuous integration
+name: Continuous Integration
 
 jobs:
   check:
@@ -27,6 +27,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - run: apt install libxml2
       - uses: actions-rs/cargo@v1
         with:
           command: test

@@ -1,7 +1,7 @@
 # promi
 **Process Mining for Rust**
 
-[![Build Status](https://travis-ci.org/PM4Rs/promi.svg?branch=master)](https://travis-ci.org/PM4Rs/promi)
+[![Build Status](https://github.com/PM4Rs/promi/workflows/Continuous%20Integration/badge.svg)](https://github.com/PM4Rs/promi/actions)
 [![Crate](https://img.shields.io/crates/v/promi)](https://crates.io/crates/promi)
 [![API](https://docs.rs/promi/badge.svg)](https://docs.rs/promi)
 [![License](https://img.shields.io/crates/l/promi)](https://crates.io/crates/promi#license)

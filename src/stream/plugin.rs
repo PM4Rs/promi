@@ -4,8 +4,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use serde::export::fmt::Debug;
-
 use crate::stream::channel::{StreamReceiver, StreamSender};
 use crate::stream::duplicator::Duplicator;
 use crate::stream::repair::Repair;

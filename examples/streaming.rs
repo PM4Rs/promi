@@ -4,11 +4,11 @@ use std::path::Path;
 
 use promi::stream::log::Log;
 use promi::stream::observer::{Handler, Observer};
+use promi::stream::repair::Repair;
 use promi::stream::stats::{Statistics, StatsCollector};
 use promi::stream::validator::Validator;
 use promi::stream::void::consume;
 use promi::stream::{buffer, xes, AnyArtifact, Sink};
-use promi::stream::repair::Repair;
 
 /// Stream XES string to stdout
 ///

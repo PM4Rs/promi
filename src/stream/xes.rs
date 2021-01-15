@@ -58,7 +58,7 @@ use quick_xml::events::{
     BytesDecl as QxBytesDecl, BytesEnd as QxBytesEnd, BytesStart as QxBytesStart,
     BytesText as QxBytesText, Event as QxEvent,
 };
-use quick_xml::{Reader as QxReader, Result as QxResult, Writer as QxWriter};
+use quick_xml::{Reader as QxReader, Writer as QxWriter};
 
 use crate::stream::log::Log;
 use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
@@ -154,10 +154,7 @@ impl Attribute {
 
                 writer.write_event(QxEvent::Start(event_l))?;
                 writer.write_event(QxEvent::Start(event_v))?;
-                attributes
-                    .iter()
-                    .map(|a| a.write_xes(writer))
-                    .collect::<Result<()>>()?;
+                attributes.iter().try_for_each(|a| a.write_xes(writer))?;
                 writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_v)))?;
                 writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_l)))?;
 
@@ -252,8 +249,7 @@ impl Global {
         writer.write_event(QxEvent::Start(event))?;
         self.attributes
             .iter()
-            .map(|a| a.write_xes(writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|a| a.write_xes(writer))?;
         writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
         Ok(())
@@ -292,20 +288,14 @@ impl Meta {
     fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
         self.extensions
             .iter()
-            .map(|e| e.write_xes(writer))
-            .collect::<Result<()>>()?;
-        self.globals
-            .iter()
-            .map(|g| g.write_xes(writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|e| e.write_xes(writer))?;
+        self.globals.iter().try_for_each(|g| g.write_xes(writer))?;
         self.classifiers
             .iter()
-            .map(|c| c.write_xes(writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|c| c.write_xes(writer))?;
         self.attributes
             .iter()
-            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
 
         Ok(())
     }
@@ -338,8 +328,7 @@ impl Event {
         writer.write_event(QxEvent::Start(event))?;
         self.attributes
             .iter()
-            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
         writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
         Ok(())
@@ -378,12 +367,8 @@ impl Trace {
         writer.write_event(QxEvent::Start(event))?;
         self.attributes
             .iter()
-            .map(|(k, v)| Attribute::write_xes_kv(k, v, writer))
-            .collect::<Result<()>>()?;
-        self.events
-            .iter()
-            .map(|e| e.write_xes(writer))
-            .collect::<Result<()>>()?;
+            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
+        self.events.iter().try_for_each(|e| e.write_xes(writer))?;
         writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
         Ok(())
@@ -683,11 +668,10 @@ impl<W: io::Write + Send> Sink for XesWriter<W> {
             " promi is available at https://crates.io/crates/promi ",
         ]
         .iter()
-        .map(|s| {
+        .try_for_each(|s| {
             self.writer
                 .write_event(QxEvent::Comment(QxBytesText::from_plain_str(s)))
-        })
-        .collect::<QxResult<()>>()?;
+        })?;
 
         // write contents
         let tag = b"log";

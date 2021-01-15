@@ -59,11 +59,11 @@ impl Attributes for Log {
         self.meta.attributes.get(key)
     }
 
-    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
+    fn children(&self) -> Vec<&dyn Attributes> {
         self.traces
             .iter()
-            .map(|t| t as &'a dyn Attributes)
-            .chain(self.events.iter().map(|e| e as &'a dyn Attributes))
+            .map(|t| t as &dyn Attributes)
+            .chain(self.events.iter().map(|e| e as &dyn Attributes))
             .collect()
     }
 

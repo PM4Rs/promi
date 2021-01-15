@@ -339,7 +339,7 @@ pub trait Attributes {
     }
 
     /// Access child components of this component
-    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
+    fn children(&self) -> Vec<&dyn Attributes> {
         vec![]
     }
 
@@ -362,11 +362,8 @@ impl Attributes for Trace {
         self.attributes.get(key)
     }
 
-    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
-        self.events
-            .iter()
-            .map(|e| e as &'a dyn Attributes)
-            .collect()
+    fn children(&self) -> Vec<&dyn Attributes> {
+        self.events.iter().map(|e| e as &dyn Attributes).collect()
     }
 
     fn hint(&self) -> ComponentType {
@@ -393,7 +390,7 @@ impl Attributes for Component {
         }
     }
 
-    fn children<'a>(&'a self) -> Vec<&'a dyn Attributes> {
+    fn children(&self) -> Vec<&dyn Attributes> {
         match self {
             Component::Meta(meta) => meta.children(),
             Component::Trace(trace) => trace.children(),
@@ -537,7 +534,7 @@ impl<'a> Stream for Box<dyn Stream + 'a> {
 /// function is a good shortcut. It simply discards the stream's contents.
 ///
 pub trait Sink: Send {
-    /// Optional callback  that is invoked when the stream is opened
+    /// Optional callback that is invoked when the stream is opened
     fn on_open(&mut self) -> Result<()> {
         Ok(())
     }

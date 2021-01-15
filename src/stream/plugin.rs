@@ -273,7 +273,7 @@ impl Factory {
                 parameters.warn_non_empty();
                 stream
             }
-            _ => Err(Error::StreamError(format!(""))),
+            _ => Err(Error::StreamError("Wrong factory type (Stream)".into())),
         }
     }
 
@@ -294,7 +294,7 @@ impl Factory {
                 parameters.warn_non_empty();
                 sink
             }
-            _ => Err(Error::StreamError(format!(""))),
+            _ => Err(Error::StreamError("Wrong factory type (Sink)".into())),
         }
     }
 }

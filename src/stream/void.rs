@@ -49,7 +49,7 @@ impl PluginProvider for Void {
                 "A sink that discards all items",
                 Factory::new(
                     Declaration::default(),
-                    FactoryType::Stream(Box::new(|_| Ok(Box::new(Void::default())))),
+                    FactoryType::Sink(Box::new(|_| Ok(Box::new(Void::default())))),
                 ),
             ),
         ]

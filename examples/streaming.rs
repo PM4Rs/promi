@@ -8,6 +8,7 @@ use promi::stream::stats::{Statistics, StatsCollector};
 use promi::stream::validator::Validator;
 use promi::stream::void::consume;
 use promi::stream::{buffer, xes, AnyArtifact, Sink};
+use promi::stream::repair::Repair;
 
 /// Stream XES string to stdout
 ///
@@ -85,14 +86,15 @@ fn example_2() {
 
 /// Store XES file stream in log, convert log to stream buffer and stream it to stdout
 ///
-/// file > XesReader > Validator
+/// file > XesReader > Repair > Validator
 ///
 fn example_3() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/xes/book/bigger-example.xes");
     let file = BufReader::new(File::open(&path).unwrap());
 
     let reader = xes::XesReader::from(file);
-    let mut validator = Validator::default().into_observer(reader);
+    let repair = Repair::default().into_observer(reader);
+    let mut validator = Validator::default().into_observer(repair);
 
     consume(&mut validator).unwrap();
 }

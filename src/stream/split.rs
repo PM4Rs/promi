@@ -1,8 +1,8 @@
 //! Perform a train-test-split on an event stream
 
+use chrono::Utc;
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
-use chrono::Utc;
 
 use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::void::Void;
@@ -101,7 +101,9 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                         .stream("inner", "The stream to be split")
                         .sink("sink", "The sink that consumes one part of the stream")
                         .attribute("ratio", "Share of events/traces that are kept")
-                        .default_attr("seed", "Optional seed", || Utc::now().timestamp_nanos().into()),
+                        .default_attr("seed", "Optional seed", || {
+                            Utc::now().timestamp_nanos().into()
+                        }),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,

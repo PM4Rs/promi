@@ -49,7 +49,7 @@ impl<'a> Extension<'a> for Concept<'a> {
     fn validator(_meta: &Meta) -> ValidatorFn {
         Box::new(|x| {
             let _ = Concept::view(*x)?;
-            // since all error classes are caught until creation of a concept instance there's
+            // since all error classes are caught during creation of a concept instance there's
             // nothing else to do here :)
             Ok(())
         })

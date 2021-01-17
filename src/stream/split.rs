@@ -2,10 +2,11 @@
 
 use rand::{distributions::Open01, random, Rng};
 use rand_pcg::Pcg64;
+use chrono::Utc;
 
 use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::void::Void;
-use crate::stream::{AnyArtifact, AttributeValue, Component, ResOpt, Sink, Stream};
+use crate::stream::{AnyArtifact, Component, ResOpt, Sink, Stream};
 use crate::Result;
 
 /// Train-Test split
@@ -100,7 +101,7 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                         .stream("inner", "The stream to be split")
                         .sink("sink", "The sink that consumes one part of the stream")
                         .attribute("ratio", "Share of events/traces that are kept")
-                        .default_attr("seed", "Optional seed", AttributeValue::Int(0)), // TODO random seed!
+                        .default_attr("seed", "Optional seed", || Utc::now().timestamp_nanos().into()),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,
@@ -122,7 +123,7 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                     Declaration::default()
                         .stream("inner", "The stream to be sampled from")
                         .attribute("ratio", "Share of events/traces that are sampled")
-                        .default_attr("seed", "Optional seed", AttributeValue::Int(0)),
+                        .default_attr("seed", "Optional seed", || 0.into()),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,

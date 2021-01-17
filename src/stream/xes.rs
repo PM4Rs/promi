@@ -749,7 +749,7 @@ impl PluginProvider for XesPluginProvider {
                 Factory::new(
                     Declaration::default()
                         .attribute("path", "Location of the XES file")
-                        .default_attr("indent", "Indentation", AttributeValue::Int(0)),
+                        .default_attr("indent", "Indentation", || 0.into()),
                     FactoryType::Sink(Box::new(|parameters| -> Result<Box<dyn Sink>> {
                         let path = parameters
                             .acquire_attribute("path")?

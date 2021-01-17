@@ -128,14 +128,14 @@ impl Declaration {
     }
 
     /// Register attribute with default value
-    pub fn default_attr<S: Into<String>, D: Into<String>>(
+    pub fn default_attr<S: Into<String>, D: Into<String>, V: Fn() -> AttributeValue>(
         mut self,
         name: S,
         description: D,
-        default: AttributeValue,
+        default: V,
     ) -> Self {
         self.attributes
-            .push((name.into(), description.into(), Some(default)));
+            .push((name.into(), description.into(), Some(default())));
         self
     }
 
@@ -447,7 +447,7 @@ mod tests {
         logging();
 
         let declaration = Declaration::default()
-            .default_attr("foo", "some description", AttributeValue::Int(42))
+            .default_attr("foo", "some description", || 42.into())
             .attribute("bar", "some description")
             .artifact("foo", "some description")
             .artifact("bar", "some description")
@@ -457,8 +457,8 @@ mod tests {
             .sink("bar", "some description");
 
         let atr_extra: HashMap<String, AttributeValue> = vec![
-            ("bar".into(), AttributeValue::Int(13)),
-            ("baz".into(), AttributeValue::Int(37)),
+            ("bar".into(), 13.into()),
+            ("baz".into(), 37.into()),
         ]
         .into_iter()
         .collect();
@@ -539,7 +539,7 @@ mod tests {
         logging();
 
         let decl_atr = Declaration::default()
-            .default_attr("foo", "some description", AttributeValue::Int(0))
+            .default_attr("foo", "some description", || 0.into())
             .attribute("bar", "some description");
 
         let decl_art = Declaration::default()

@@ -456,12 +456,10 @@ mod tests {
             .sink("foo", "some description")
             .sink("bar", "some description");
 
-        let atr_extra: HashMap<String, AttributeValue> = vec![
-            ("bar".into(), 13.into()),
-            ("baz".into(), 37.into()),
-        ]
-        .into_iter()
-        .collect();
+        let atr_extra: HashMap<String, AttributeValue> =
+            vec![("bar".into(), 13.into()), ("baz".into(), 37.into())]
+                .into_iter()
+                .collect();
         let art_extra: &mut [AnyArtifact] = &mut [
             TestArtifact::default().into(),
             TestArtifact::default().into(),

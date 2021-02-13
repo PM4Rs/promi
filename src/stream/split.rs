@@ -125,7 +125,9 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                     Declaration::default()
                         .stream("inner", "The stream to be sampled from")
                         .attribute("ratio", "Share of events/traces that are sampled")
-                        .default_attr("seed", "Optional seed", || 0.into()),
+                        .default_attr("seed", "Optional seed", || {
+                            Utc::now().timestamp_nanos().into()
+                        }),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,

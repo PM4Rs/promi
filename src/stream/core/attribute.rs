@@ -1,7 +1,9 @@
+use std::any::Any;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
+use crate::stream::Artifact;
 use crate::{DateTime, Error, Result};
 
 /// Mirrors types available in `AttributeValue` enum
@@ -145,6 +147,16 @@ impl From<Vec<Attribute>> for AttributeValue {
     }
 }
 
+impl Artifact for AttributeValue {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 /// Express atomic information
 ///
 /// From [IEEE Std 1849-2016](https://standards.ieee.org/standard/1849-2016.html):
@@ -168,5 +180,15 @@ impl Attribute {
 
     pub fn hint(&self) -> AttributeType {
         self.value.hint()
+    }
+}
+
+impl Artifact for Attribute {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

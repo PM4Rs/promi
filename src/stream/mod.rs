@@ -26,6 +26,7 @@ pub mod channel;
 pub mod duplicator;
 pub mod extension;
 pub mod filter;
+pub mod flow;
 pub mod log;
 pub mod observer;
 pub mod plugin;

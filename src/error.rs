@@ -55,6 +55,9 @@ pub enum Error {
 
     #[error("{0}")]
     SerializationError(String),
+
+    #[error("{0}")]
+    FlowError(String),
 }
 
 // Manual conversion as quick-xml errors don't support cloning

@@ -463,12 +463,12 @@ impl XesIntermediate {
     }
 
     fn pop(&mut self, key: &str) -> Result<String> {
-        Ok(self.attributes.remove(key).ok_or_else(|| {
+        self.attributes.remove(key).ok_or_else(|| {
             Error::KeyError(format!(
                 "missing {:?} attribute in {:?}",
                 key, self.type_name
             ))
-        })?)
+        })
     }
 
     fn add_component(&mut self, component: XesComponent) {
@@ -795,16 +795,15 @@ mod tests {
             if expect_failure {
                 assert!(
                     result.is_err(),
-                    format!("parsing {:?} is expected to fail but didn't", p.path())
+                    "parsing {:?} is expected to fail but didn't",
+                    p.path()
                 );
             } else {
                 assert!(
                     result.is_ok(),
-                    format!(
-                        "parsing {:?} unexpectedly failed: {:?}",
-                        p.path(),
-                        result.err()
-                    )
+                    "parsing {:?} unexpectedly failed: {:?}",
+                    p.path(),
+                    result.err()
                 );
             }
         }
@@ -869,7 +868,9 @@ mod tests {
 
             assert!(
                 validation_result.status.success(),
-                format!("validation failed for {:?}, {:?}", p, validation_result)
+                "validation failed for {:?}, {:?}",
+                p,
+                validation_result
             );
         }
     }

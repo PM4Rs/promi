@@ -162,8 +162,8 @@ mod tests {
 
     fn assert_matches(regex: &Regex, matches: &[&str], no_matches: &[&str]) {
         for (m, n) in matches.iter().zip(no_matches.iter()) {
-            assert!(regex.is_match(m), format!("\"{}\" must match", m));
-            assert!(!regex.is_match(n), format!("\"{}\" must not match", n));
+            assert!(regex.is_match(m), "\"{}\" must match", m);
+            assert!(!regex.is_match(n), "\"{}\" must not match", n);
         }
     }
 

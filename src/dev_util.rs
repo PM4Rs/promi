@@ -188,14 +188,14 @@ pub mod tests {
             let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), i);
             match consume(&mut failing) {
                 Err(Error::StreamError(_)) => (),
-                other => panic!(format!("expected stream error, got {:?}", other)),
+                other => panic!("expected stream error, got {:?}", other),
             }
         }
 
         let mut failing = FailingStream::new(load_example(&["book", "L1.xes"]), -1);
         match consume(&mut failing) {
             Err(Error::ArtifactError(_)) => (),
-            other => panic!(format!("expected artifact error, got {:?}", other)),
+            other => panic!("expected artifact error, got {:?}", other),
         }
     }
 }

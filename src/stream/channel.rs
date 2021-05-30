@@ -255,9 +255,9 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
         let (entry, _) = self.lookup(key)?;
 
-        Ok(entry
+        entry
             .take(generation)
-            .map_err(|_| Error::ChannelError(format!("sender {:?} was already acquired", key)))?)
+            .map_err(|_| Error::ChannelError(format!("sender {:?} was already acquired", key)))
     }
 
     /// Acquire an iterator over all remaining senders
@@ -285,9 +285,9 @@ impl<T: Send + 'static, G: Copy + Eq + Hash> ChannelNameSpace<T, G> {
             .ok_or_else(|| Error::ChannelError("no generation set".into()))?;
         let (_, entry) = self.lookup(key)?;
 
-        Ok(entry
+        entry
             .take(generation)
-            .map_err(|_| Error::ChannelError(format!("receiver {:?} was already acquired", key)))?)
+            .map_err(|_| Error::ChannelError(format!("receiver {:?} was already acquired", key)))
     }
 
     /// Acquire an iterator over all remaining receivers

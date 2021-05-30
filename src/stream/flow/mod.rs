@@ -3,8 +3,8 @@
 //! ```
 //! use std::path::Path;
 //!
-//! use promi::Result;
-//! use promi::stream::Attribute;
+//! use promi::{Result, DateTime};
+//! use promi::stream::{Attribute, AttributeValue};
 //! use promi::stream::stats::Statistics;
 //! use promi::stream::flow::{Segment, FlowGraph, ThreadExecutor};
 //!

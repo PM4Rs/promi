@@ -369,7 +369,8 @@ mod tests {
 
             assert!(
                 consume(&mut observer).is_err(),
-                format!("expected state error: {:?}", path)
+                "expected state error: {:?}",
+                path
             )
         }
     }

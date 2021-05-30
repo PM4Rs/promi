@@ -10,6 +10,7 @@ use crate::stream::{
 pub type Condition<'a, T> = Box<dyn Fn(&T) -> Result<bool> + 'a + Send>;
 
 /// A vector of vectors of conditions
+#[allow(clippy::upper_case_acronyms)]
 pub type CNF<'a, T> = Vec<Vec<Condition<'a, T>>>;
 
 /// Filter handler for use with an observer

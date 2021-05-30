@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::error::{Error, Result};
+use crate::stream::log::Log;
 use crate::stream::{Component, ResOpt, Sink, Stream};
 
 /// Consumes a stream and stores it in memory for further processing.
@@ -52,6 +53,26 @@ impl Sink for Buffer {
     fn on_error(&mut self, error: Error) -> Result<()> {
         self.buffer.push_back(Err(error));
         Ok(())
+    }
+}
+
+impl From<Log> for Buffer {
+    fn from(log: Log) -> Self {
+        let mut buffer = Buffer {
+            buffer: VecDeque::with_capacity(1 + log.traces.len() + log.events.len()),
+        };
+
+        buffer.push(Ok(Some(Component::Meta(log.meta))));
+
+        for trace in log.traces {
+            buffer.push(Ok(Some(Component::Trace(trace))));
+        }
+
+        for event in log.events {
+            buffer.push(Ok(Some(Component::Event(event))));
+        }
+
+        buffer
     }
 }
 

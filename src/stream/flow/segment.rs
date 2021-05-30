@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use crate::stream::flow::util::{ArtifactReceiver, ArtifactSender, ACNS, SCNS};
-
 use crate::stream::channel::{StreamReceiver, StreamSender};
+use crate::stream::flow::util::{ArtifactReceiver, ArtifactSender, ACNS, SCNS};
 use crate::stream::plugin::{AttrMap, REGISTRY};
 use crate::stream::{AnyArtifact, Attribute, Sink, Stream};
 use crate::{Error, Result};
@@ -131,8 +130,7 @@ pub(in crate::stream::flow) struct PreparedSegment {
 
 impl PreparedSegment {
     pub fn receive_artifacts(&mut self) -> Result<Vec<(String, AnyArtifact)>> {
-        Ok(self
-            .artifact_receiver
+        self.artifact_receiver
             .drain(..)
             .map(|(k, r)| {
                 let a = r.recv().map_err(|_| {
@@ -140,7 +138,7 @@ impl PreparedSegment {
                 })?;
                 Ok((k, a))
             })
-            .collect::<Result<_>>()?)
+            .collect::<Result<_>>()
     }
 
     pub fn into_stream<'a>(

@@ -3,7 +3,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::stream::buffer::Buffer;
 use crate::stream::{
     AttributeValue, Attributes, Component, ComponentType, Event, Meta, Sink, Trace,
 };
@@ -33,24 +32,6 @@ impl Default for Log {
             traces: Vec::new(),
             events: Vec::new(),
         }
-    }
-}
-
-impl Into<Buffer> for Log {
-    fn into(self) -> Buffer {
-        let mut buffer = Buffer::default();
-
-        buffer.push(Ok(Some(Component::Meta(self.meta))));
-
-        for trace in self.traces {
-            buffer.push(Ok(Some(Component::Trace(trace))));
-        }
-
-        for event in self.events {
-            buffer.push(Ok(Some(Component::Event(event))));
-        }
-
-        buffer
     }
 }
 

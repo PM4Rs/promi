@@ -24,12 +24,12 @@ pub struct AnyArtifact {
 impl AnyArtifact {
     /// Try to cast down the artifact to the given type
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        Any::downcast_ref::<T>(self.artifact.as_any())
+        <dyn Any>::downcast_ref::<T>(self.artifact.as_any())
     }
 
     /// Try to cast down the artifact mutably to the given type
     pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        Any::downcast_mut::<T>(self.artifact.as_any_mut())
+        <dyn Any>::downcast_mut::<T>(self.artifact.as_any_mut())
     }
 
     /// Find the first artifact in an iterator that can be casted down to the given type

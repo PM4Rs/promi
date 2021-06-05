@@ -433,11 +433,11 @@ mod tests {
     }
 
     impl Artifact for TestArtifact {
-        fn as_any(&self) -> &dyn Any {
+        fn upcast_ref(&self) -> &dyn Any {
             self
         }
 
-        fn as_any_mut(&mut self) -> &mut dyn Any {
+        fn upcast_mut(&mut self) -> &mut dyn Any {
             self
         }
     }

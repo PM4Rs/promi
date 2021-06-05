@@ -8,9 +8,17 @@ use crate::Result;
 
 /// A protocol to represent any kind of aggregation product a event stream may produce
 pub trait Artifact: Any + Send + Debug + ErasedSerialize {
-    fn as_any(&self) -> &dyn Any;
+    /// Upcast the artifact to `&dyn Any`
+    ///
+    /// Usually, an implementation involves nothing more than `{ self }` and may be provided by a
+    /// procedural macro in the future.
+    fn upcast_ref(&self) -> &dyn Any;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Upcast the artifact to `&mut dyn Any`
+    ///
+    /// Usually, an implementation involves nothing more than `{ self }` and may be provided by a
+    /// procedural macro in the future.
+    fn upcast_mut(&mut self) -> &mut dyn Any;
 }
 
 erased_serde::serialize_trait_object!(Artifact);
@@ -24,12 +32,12 @@ pub struct AnyArtifact {
 impl AnyArtifact {
     /// Try to cast down the artifact to the given type
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        <dyn Any>::downcast_ref::<T>(self.artifact.as_any())
+        <dyn Any>::downcast_ref::<T>(self.artifact.upcast_ref())
     }
 
     /// Try to cast down the artifact mutably to the given type
     pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        <dyn Any>::downcast_mut::<T>(self.artifact.as_any_mut())
+        <dyn Any>::downcast_mut::<T>(self.artifact.upcast_mut())
     }
 
     /// Find the first artifact in an iterator that can be casted down to the given type

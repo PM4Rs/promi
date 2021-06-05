@@ -66,21 +66,21 @@ impl Pipe {
 }
 
 impl Artifact for Pipe {
-    fn as_any(&self) -> &dyn Any {
+    fn upcast_ref(&self) -> &dyn Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn upcast_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
 
 impl<I: IntoIterator<Item = Pipe> + erased_serde::Serialize + Debug + Any + Send> Artifact for I {
-    fn as_any(&self) -> &dyn Any {
+    fn upcast_ref(&self) -> &dyn Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn upcast_mut(&mut self) -> &mut dyn Any {
         self
     }
 }

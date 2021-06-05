@@ -148,11 +148,11 @@ impl From<Vec<Attribute>> for AttributeValue {
 }
 
 impl Artifact for AttributeValue {
-    fn as_any(&self) -> &dyn Any {
+    fn upcast_ref(&self) -> &dyn Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn upcast_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -184,11 +184,11 @@ impl Attribute {
 }
 
 impl Artifact for Attribute {
-    fn as_any(&self) -> &dyn Any {
+    fn upcast_ref(&self) -> &dyn Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn upcast_mut(&mut self) -> &mut dyn Any {
         self
     }
 }

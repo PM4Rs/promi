@@ -54,12 +54,12 @@ impl Global {
     pub fn validate(&self, component: &dyn Attributes) -> Result<()> {
         for attribute in self.attributes.iter() {
             if let Some(other) = component.get(&attribute.key) {
-                if attribute.hint() != other.hint() {
+                if attribute.hint() != other.type_hint() {
                     return Err(Error::ValidationError(format!(
                         "Expected \"{:?}\" to be of type {:?} but got {:?} instead",
                         attribute.key,
                         attribute.hint(),
-                        other.hint()
+                        other.type_hint()
                     )));
                 }
             } else {

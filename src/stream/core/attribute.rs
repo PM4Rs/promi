@@ -67,7 +67,7 @@ impl AttributeValue {
     pub fn try_boolean(&self) -> Result<&bool> {
         match self {
             AttributeValue::Boolean(boolean) => Ok(boolean),
-            other => Err(Error::AttributeError(format!("{:?} is no integer", other))),
+            other => Err(Error::AttributeError(format!("{:?} is no boolean", other))),
         }
     }
 
@@ -88,7 +88,7 @@ impl AttributeValue {
     }
 
     /// Tell the caller what type this attribute value is of
-    pub fn hint(&self) -> AttributeType {
+    pub fn type_hint(&self) -> AttributeType {
         match self {
             AttributeValue::String(_) => AttributeType::String,
             AttributeValue::Date(_) => AttributeType::Date,
@@ -101,9 +101,9 @@ impl AttributeValue {
     }
 }
 
-// Since both, AttributeValue::String and AttributeValue::Id, build up on String, only one of them
-// can automatically converted. Since strings occurs more often and it's usage is more universal,
-// we decided for this type.
+// Since both, `AttributeValue::String` and `AttributeValue::Id`, build up on String, only one of
+// them can automatically converted. Since strings occurs more often and it's usage is more
+// universal, we decided for this type.
 impl From<&str> for AttributeValue {
     fn from(value: &str) -> Self {
         AttributeValue::String(value.into())
@@ -140,7 +140,7 @@ impl From<bool> for AttributeValue {
     }
 }
 
-// NOTE: impl<T: IntoIter<Item=Attribute> From <T>... would conflict with From<String> :/
+// NOTE: `impl<T: IntoIter<Item=Attribute>` From <T>... would collide with `From<String>` :/
 impl From<Vec<Attribute>> for AttributeValue {
     fn from(value: Vec<Attribute>) -> Self {
         AttributeValue::List(value)
@@ -179,7 +179,7 @@ impl Attribute {
     }
 
     pub fn hint(&self) -> AttributeType {
-        self.value.hint()
+        self.value.type_hint()
     }
 }
 

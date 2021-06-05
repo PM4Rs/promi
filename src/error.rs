@@ -54,9 +54,6 @@ pub enum Error {
     ArtifactError(String),
 
     #[error("{0}")]
-    SerializationError(String),
-
-    #[error("{0}")]
     FlowError(String),
 }
 
@@ -78,13 +75,6 @@ impl From<std::string::FromUtf8Error> for Error {
 impl From<std::sync::mpsc::SendError<crate::stream::ResOpt>> for Error {
     fn from(error: std::sync::mpsc::SendError<crate::stream::ResOpt>) -> Self {
         Error::ChannelError(format!("{:?}", error))
-    }
-}
-
-// Manual conversion as erased_serde errors errors don't support cloning
-impl From<erased_serde::Error> for Error {
-    fn from(error: erased_serde::Error) -> Self {
-        Error::SerializationError(format!("{:?}", error))
     }
 }
 

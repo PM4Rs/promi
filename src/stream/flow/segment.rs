@@ -17,6 +17,7 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Segment {
     name: String,
+    #[serde(rename = "attributes")]
     attributes_: AttrMap,
     stream_sender: Vec<String>,
     stream_receiver: Vec<String>,

@@ -6,12 +6,12 @@
 //! use promi::{Result, DateTime};
 //! use promi::stream::{Attribute, AttributeValue};
 //! use promi::stream::stats::Statistics;
-//! use promi::stream::flow::{Segment, FlowGraph, ThreadExecutor};
+//! use promi::stream::flow::{Segment, Graph, ThreadExecutor};
 //!
 //!# fn main() -> Result<()> {
 //! let path: String = Path::new(env!("CARGO_MANIFEST_DIR"))
 //!    .join("static/xes/book/bigger-example.xes").to_str().unwrap().into();
-//! let mut pg = FlowGraph::default();
+//! let mut pg = Graph::default();
 //!
 //! pg.source(
 //!     "Train",
@@ -64,7 +64,7 @@
 //! ```
 //!
 pub use executor::{Executor, SequentialExecutor, ThreadExecutor};
-pub use graph::FlowGraph;
+pub use graph::Graph;
 pub use segment::Segment;
 
 pub mod executor;

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use petgraph::algo::toposort as pg_toposort;
 use petgraph::prelude::DiGraph;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::stream::flow::pipe::Pipe;
 use crate::stream::flow::pipe::PreparedPipe;
@@ -53,18 +53,18 @@ fn toposort<T: Eq + Hash + Debug + Copy, I: IntoIterator<Item = (T, T)>>(
     }
 }
 
-/// TODO docs
-#[derive(Debug, Serialize)]
-pub struct FlowGraph {
+/// Directed, acyclic event stream processing graph
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Graph {
     generation: usize,
     pub artifacts: HashMap<String, AnyArtifact>,
     staging: Option<Pipe>,
     pipes: Vec<Pipe>,
 }
 
-impl Default for FlowGraph {
+impl Default for Graph {
     fn default() -> Self {
-        FlowGraph {
+        Graph {
             generation: 0,
             artifacts: HashMap::new(),
             staging: None,
@@ -73,7 +73,7 @@ impl Default for FlowGraph {
     }
 }
 
-impl FlowGraph {
+impl Graph {
     /// Add a new source segment
     ///
     /// If there's an open pipe, it is closed and a new one with this source is set staging.

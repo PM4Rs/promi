@@ -33,7 +33,6 @@
 //!
 
 extern crate chrono;
-extern crate erased_serde;
 #[cfg(test)]
 #[macro_use]
 extern crate is_close;
@@ -47,6 +46,7 @@ extern crate serde;
 #[cfg(test)]
 extern crate simple_logger;
 extern crate thiserror;
+extern crate typetag;
 
 pub use error::{Error, Result};
 

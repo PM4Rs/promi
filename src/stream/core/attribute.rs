@@ -147,6 +147,7 @@ impl From<Vec<Attribute>> for AttributeValue {
     }
 }
 
+#[typetag::serde]
 impl Artifact for AttributeValue {
     fn upcast_ref(&self) -> &dyn Any {
         self
@@ -183,6 +184,7 @@ impl Attribute {
     }
 }
 
+#[typetag::serde]
 impl Artifact for Attribute {
     fn upcast_ref(&self) -> &dyn Any {
         self

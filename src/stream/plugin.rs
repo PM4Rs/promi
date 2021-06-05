@@ -416,14 +416,14 @@ pub fn log_plugins() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-
     use crate::dev_util::logging;
     use crate::stream::Artifact;
+    use serde::{Deserialize, Serialize};
+    use std::any::Any;
 
     use super::*;
 
-    #[derive(Debug, Clone, serde::Serialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestArtifact;
 
     impl Default for TestArtifact {
@@ -432,6 +432,7 @@ mod tests {
         }
     }
 
+    #[typetag::serde]
     impl Artifact for TestArtifact {
         fn upcast_ref(&self) -> &dyn Any {
             self

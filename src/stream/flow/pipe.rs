@@ -65,6 +65,7 @@ impl Pipe {
     }
 }
 
+#[typetag::serde]
 impl Artifact for Pipe {
     fn upcast_ref(&self) -> &dyn Any {
         self
@@ -75,7 +76,8 @@ impl Artifact for Pipe {
     }
 }
 
-impl<I: IntoIterator<Item = Pipe> + erased_serde::Serialize + Debug + Any + Send> Artifact for I {
+#[typetag::serde]
+impl Artifact for Vec<Pipe> {
     fn upcast_ref(&self) -> &dyn Any {
         self
     }

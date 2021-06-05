@@ -11,7 +11,6 @@ keywords = ["processmining", "datamining", "streaming"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-erased-serde = "0.3"
 lazy_static = "1.4"
 log = "0.4"
 petgraph = "0.5"
@@ -19,12 +18,13 @@ rand = "0.8"
 rand_pcg = "0.3"
 regex = "1.3"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 thiserror = "1.0"
+typetag = "0.1"
 quick-xml = "0.22"
 
 [dev-dependencies]
 is_close = "0.1"
+serde_json = "1.0"
 simple_logger = "1.9"
 
 [profile.release]

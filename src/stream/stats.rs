@@ -52,13 +52,15 @@ use std::fmt;
 use std::fmt::Debug;
 use std::mem;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::stream::observer::Observer;
 use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::{observer::Handler, AnyArtifact, Artifact, Event, Stream, Trace};
 
 /// Container for statistical data of an event stream
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Statistics {
     ct_trace: Vec<usize>,
     ct_event: usize,
@@ -86,6 +88,7 @@ impl Default for Statistics {
     }
 }
 
+#[typetag::serde]
 impl Artifact for Statistics {
     fn upcast_ref(&self) -> &dyn Any {
         self
@@ -213,7 +216,7 @@ mod tests {
         artifact.serialize(&mut serializer).unwrap();
 
         assert_eq!(
-            r#"{"artifact":{"ct_trace":[3,4,4,4,4,4],"ct_event":23}}"#,
+            r#"{"artifact":{"__type":"Statistics","ct_trace":[3,4,4,4,4,4],"ct_event":23}}"#,
             String::from_utf8(buffer.into_inner().unwrap()).unwrap()
         );
     }

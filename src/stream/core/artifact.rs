@@ -1,13 +1,11 @@
 use std::any::Any;
 use std::fmt::Debug;
 
-use erased_serde::{Serialize as ErasedSerialize, Serializer as ErasedSerializer};
-use serde::Serialize;
-
-use crate::Result;
+use serde::{Deserialize, Serialize};
 
 /// A protocol to represent any kind of aggregation product a event stream may produce
-pub trait Artifact: Any + Send + Debug + ErasedSerialize {
+#[typetag::serde(tag = "__type")]
+pub trait Artifact: Any + Send + Debug {
     /// Upcast the artifact to `&dyn Any`
     ///
     /// Usually, an implementation involves nothing more than `{ self }` and may be provided by a
@@ -21,10 +19,8 @@ pub trait Artifact: Any + Send + Debug + ErasedSerialize {
     fn upcast_mut(&mut self) -> &mut dyn Any;
 }
 
-erased_serde::serialize_trait_object!(Artifact);
-
 /// Container for arbitrary artifacts a stream processing pipeline may create
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AnyArtifact {
     artifact: Box<dyn Artifact>,
 }
@@ -57,11 +53,6 @@ impl AnyArtifact {
         artifacts: &'a mut (dyn std::iter::Iterator<Item = &'a AnyArtifact> + 'a),
     ) -> impl Iterator<Item = &'a T> {
         artifacts.filter_map(|a| a.downcast_ref::<T>())
-    }
-
-    /// Serialize inner artifact without the `AnyArtifact` container
-    pub fn serialize_inner(&self, serializer: &mut dyn ErasedSerializer) -> Result<()> {
-        Ok(self.artifact.erased_serialize(serializer).map(|_| ())?)
     }
 }
 

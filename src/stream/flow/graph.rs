@@ -4,9 +4,9 @@ use std::hash::Hash;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
 use petgraph::algo::toposort as pg_toposort;
 use petgraph::prelude::DiGraph;
+use serde::Serialize;
 
 use crate::stream::flow::pipe::Pipe;
 use crate::stream::flow::pipe::PreparedPipe;

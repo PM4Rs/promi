@@ -9,7 +9,7 @@ use crate::stream::plugin::{AttrMap, REGISTRY};
 use crate::stream::{AnyArtifact, Attribute, Sink, Stream};
 use crate::{Error, Result};
 
-/// Atomic unit of a pipe configuration
+/// Atomic unit of a pipe
 ///
 /// A segment describes the configuration of a stream source, intermediate stream or a sink. It does
 /// not make any assumptions about the soundness of the values passed though.

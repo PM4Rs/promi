@@ -17,9 +17,9 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipe {
     name: String,
-    source_config: Segment,
-    stream_configs: Vec<Segment>,
-    sink_config: Option<Segment>,
+    source: Segment,
+    streams: Vec<Segment>,
+    sink: Option<Segment>,
 }
 
 impl Pipe {
@@ -27,21 +27,21 @@ impl Pipe {
     pub fn new<T: Into<String>>(name: T, source: Segment) -> Self {
         Self {
             name: name.into(),
-            source_config: source,
-            stream_configs: Vec::new(),
-            sink_config: None,
+            source,
+            streams: Vec::new(),
+            sink: None,
         }
     }
 
     /// Add stream segment
     pub fn stream(&mut self, stream: Segment) -> &mut Self {
-        self.stream_configs.push(stream);
+        self.streams.push(stream);
         self
     }
 
     /// Add sink segment
     pub fn sink(&mut self, stream: Segment) -> &mut Self {
-        self.sink_config = Some(stream);
+        self.sink = Some(stream);
         self
     }
 
@@ -51,12 +51,12 @@ impl Pipe {
         scns: &mut SCNS,
         acns: &mut ACNS,
     ) -> Result<PreparedPipe> {
-        let sink = self.sink_config.unwrap_or_else(|| Segment::new("VoidSink"));
+        let sink = self.sink.unwrap_or_else(|| Segment::new("VoidSink"));
         Ok(PreparedPipe {
             name: self.name,
-            source_builder: self.source_config.acquire(scns, acns)?,
+            source_builder: self.source.acquire(scns, acns)?,
             stream_builder: self
-                .stream_configs
+                .streams
                 .into_iter()
                 .map(|c| c.acquire(scns, acns))
                 .collect::<Result<_>>()?,

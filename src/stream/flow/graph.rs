@@ -90,8 +90,8 @@ impl FlowGraph {
     ///
     pub fn stream(&mut self, stream: Segment) -> Result<&mut Self> {
         match &mut self.staging {
-            Some(pipe_config) => {
-                pipe_config.stream(stream);
+            Some(pipe) => {
+                pipe.stream(stream);
                 Ok(self)
             }
             None => Err(Error::FlowError(
@@ -107,8 +107,8 @@ impl FlowGraph {
     ///
     pub fn sink(&mut self, sink: Segment) -> Result<&mut Self> {
         match &mut self.staging {
-            Some(pipe_config) => {
-                pipe_config.sink(sink);
+            Some(pipe) => {
+                pipe.sink(sink);
                 Ok(())
             }
             None => Err(Error::FlowError(
@@ -122,8 +122,8 @@ impl FlowGraph {
     }
 
     fn close(&mut self) {
-        if let Some(pipe_config) = self.staging.take() {
-            self.pipes.push(pipe_config);
+        if let Some(pipe) = self.staging.take() {
+            self.pipes.push(pipe);
         }
     }
 

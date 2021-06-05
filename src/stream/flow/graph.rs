@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use petgraph::algo::toposort as pg_toposort;
 use petgraph::prelude::DiGraph;
 
@@ -53,7 +54,7 @@ fn toposort<T: Eq + Hash + Debug + Copy, I: IntoIterator<Item = (T, T)>>(
 }
 
 /// TODO docs
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct FlowGraph {
     generation: usize,
     pub artifacts: HashMap<String, AnyArtifact>,

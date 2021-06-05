@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 use crate::stream::channel::{StreamReceiver, StreamSender};
 use crate::stream::flow::util::{ArtifactReceiver, ArtifactSender, ACNS, SCNS};
 use crate::stream::plugin::{AttrMap, REGISTRY};
@@ -12,7 +14,7 @@ use crate::{Error, Result};
 /// A segment describes the configuration of a stream source, intermediate stream or a sink. It does
 /// not make any assumptions about the soundness of the values passed though.
 ///
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Segment {
     name: String,
     attributes_: AttrMap,

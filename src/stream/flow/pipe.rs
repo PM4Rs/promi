@@ -2,6 +2,8 @@ use std::any::Any;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 use crate::stream::flow::segment::{PreparedSegment, Segment};
 use crate::stream::flow::util::{ACNS, SCNS};
 use crate::stream::{AnyArtifact, Artifact, Sink};
@@ -12,7 +14,7 @@ use crate::{Error, Result};
 /// A pipe is a container for arbitrarily many (but at least) one stream segment and an optional
 /// sink segment.
 ///
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipe {
     name: String,
     source_config: Segment,

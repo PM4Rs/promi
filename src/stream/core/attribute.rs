@@ -7,7 +7,7 @@ use crate::stream::Artifact;
 use crate::{DateTime, Error, Result};
 
 /// Mirrors types available in `AttributeValue` enum
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttributeType {
     String,
     Date,
@@ -19,7 +19,7 @@ pub enum AttributeType {
 }
 
 /// Attribute value type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeValue {
     String(String),
     Date(DateTime),
@@ -165,7 +165,7 @@ impl Artifact for AttributeValue {
 /// > Attributes describe the enclosing component, which may contain an arbitrary number of
 /// > attributes.
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Attribute {
     pub key: String,
     pub value: AttributeValue,

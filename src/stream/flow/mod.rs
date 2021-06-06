@@ -45,7 +45,7 @@
 //!     .sink(Segment::new("XesWriter")
 //!         .attribute(Attribute::new("path","/tmp/test.xes")))?;
 //!
-//! pg.execute(ThreadExecutor::default())?;
+//! pg.execute(&mut ThreadExecutor::default())?;
 //!
 //! let params = &[
 //!     ("raw_stats", [1391, 7539, 7539]),

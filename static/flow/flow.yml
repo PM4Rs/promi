@@ -1,0 +1,58 @@
+---
+generation: 0
+artifacts: {}
+staging: ~
+pipes:
+  - name: Train
+    source:
+      name: XesReader
+      attributes:
+        path:
+          String: static/xes/book/bigger-example.xes
+    streams:
+      - name: Repair
+      - name: Validator
+      - name: Statistics
+        artifact_sender:
+          - raw_stats
+      - name: Sample
+        attributes:
+          ratio:
+            Float: 0.1
+          seed:
+            Int: 0
+      - name: Statistics
+        artifact_sender:
+          - sample_stats
+      - name: Split
+        attributes:
+          ratio:
+            Float: 0.8
+          seed:
+            Int: 0
+        stream_sender:
+          - test
+      - name: Statistics
+        artifact_sender:
+          - train_stats
+    sink:
+      name: XesWriter
+      attributes:
+        path:
+          String: /tmp/train.xes
+        indent:
+          Int: 1
+  - name: Test
+    source:
+      name: Receiver
+      stream_receiver:
+        - test
+    streams:
+      - name: Statistics
+        artifact_sender:
+          - test_stats
+    sink:
+      name: XesWriter
+      attributes:
+        path:
+          String: /tmp/test.xes

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use crate::stream::flow::segment::{PreparedSegment, Segment};
-use crate::stream::flow::util::{ACNS, SCNS};
+use crate::stream::flow::util::{timeit, ACNS, SCNS};
 use crate::stream::{AnyArtifact, Artifact, Sink};
 use crate::{Error, Result};
 
@@ -14,7 +14,7 @@ use crate::{Error, Result};
 /// A pipe is a container for arbitrarily many (but at least) one stream segment and an optional
 /// sink segment.
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pipe {
     name: String,
     source: Segment,
@@ -104,15 +104,18 @@ impl PreparedPipe {
             .collect();
 
         // acquire artifacts
-        let mut artifacts = segments
-            .iter_mut()
-            .map(|cb| {
-                Ok(cb
-                    .receive_artifacts()?
-                    .into_iter()
-                    .unzip::<_, _, Vec<_>, Vec<_>>())
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let (drn_acquisition, artifacts) = timeit(|| {
+            segments
+                .iter_mut()
+                .map(|cb| {
+                    Ok(cb
+                        .receive_artifacts()?
+                        .into_iter()
+                        .unzip::<_, _, Vec<_>, Vec<_>>())
+                })
+                .collect::<Result<Vec<_>>>()
+        });
+        let mut artifacts = artifacts?;
 
         // prepare senders for all artifact emissions
         let artifact_senders = segments
@@ -137,19 +140,29 @@ impl PreparedPipe {
             }
         }
 
-        // consume stream
-        let emissions = match (stream, sink) {
-            (Some(mut stream), Some(mut sink)) => sink.consume(&mut stream)?,
+        // consume stream, i.e. actual execution
+        let (drn_execution, emissions) = timeit(|| match (stream, sink) {
+            (Some(mut stream), Some(mut sink)) => sink.consume(&mut stream),
             _ => unreachable!(),
-        };
+        });
 
         // emit artifacts that where acquired somewhere else
-        for (sender, artifacts) in artifact_senders.iter().zip(emissions.into_iter()) {
-            for (s, a) in sender.values().zip(artifacts.into_iter()) {
-                s.send(a)
-                    .map_err(|e| Error::FlowError(format!("unable to send artifacts: {:?}", e)))?;
+        let (drn_emission, result) = timeit(|| -> Result<()> {
+            for (sender, artifacts) in artifact_senders.iter().zip(emissions?.into_iter()) {
+                for (s, a) in sender.values().zip(artifacts.into_iter()) {
+                    s.send(a).map_err(|e| {
+                        Error::FlowError(format!("unable to send artifacts: {:?}", e))
+                    })?;
+                }
             }
-        }
+            Ok(())
+        });
+        result?;
+
+        debug!(
+            r#"complete "{}" (acquisition: {:.3?}, execution: {:.3?}, emission: {:.3?})"#,
+            &self.name, drn_acquisition, drn_execution, drn_emission
+        );
 
         // return remaining artifacts
         Ok(artifacts

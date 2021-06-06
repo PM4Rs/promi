@@ -14,14 +14,22 @@ use crate::{Error, Result};
 /// A segment describes the configuration of a stream source, intermediate stream or a sink. It does
 /// not make any assumptions about the soundness of the values passed though.
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Segment {
     name: String,
-    #[serde(rename = "attributes")]
+    #[serde(
+        default,
+        skip_serializing_if = "HashMap::is_empty",
+        rename = "attributes"
+    )]
     attributes_: AttrMap,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stream_sender: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stream_receiver: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     artifact_sender: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     artifact_receiver: Vec<String>,
 }
 

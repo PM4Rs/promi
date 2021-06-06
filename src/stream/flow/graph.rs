@@ -1,65 +1,24 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::hash::Hash;
 use std::sync::mpsc::channel;
-use std::time::{Duration, Instant};
 
-use petgraph::algo::toposort as pg_toposort;
-use petgraph::prelude::DiGraph;
 use serde::{Deserialize, Serialize};
 
 use crate::stream::flow::pipe::Pipe;
 use crate::stream::flow::pipe::PreparedPipe;
 use crate::stream::flow::segment::Segment;
-use crate::stream::flow::util::{ACNS, SCNS};
+use crate::stream::flow::util::{timeit, toposort, ACNS, SCNS};
 use crate::stream::flow::Executor;
 use crate::stream::AnyArtifact;
 use crate::{Error, Result};
-
-/// Measure execution time of given closure
-fn timeit<T, F>(function: F) -> (Duration, T)
-where
-    F: FnOnce() -> T,
-{
-    let t_start = Instant::now();
-    let result = function();
-    let t_end = Instant::now();
-    (t_end - t_start, result)
-}
-
-fn toposort<T: Eq + Hash + Debug + Copy, I: IntoIterator<Item = (T, T)>>(
-    edges: I,
-) -> Result<Vec<T>> {
-    let mut graph = DiGraph::<T, ()>::new();
-    let mut indeces = HashMap::new();
-
-    for (r, s) in edges {
-        indeces.entry(r).or_insert_with(|| graph.add_node(r));
-        indeces.entry(s).or_insert_with(|| graph.add_node(s));
-
-        match (indeces.get(&r), indeces.get(&s)) {
-            (Some(e_r), Some(e_s)) => {
-                graph.add_edge(*e_r, *e_s, ());
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    match pg_toposort(&graph, None) {
-        Ok(indices) => Ok(indices.into_iter().map(|i| graph[i]).collect::<Vec<_>>()),
-        Err(_) => Err(Error::FlowError(
-            "unable to perform topological sorting as the graph is not cycle free".into(),
-        )),
-    }
-}
 
 /// Directed, acyclic event stream processing graph
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Graph {
     generation: usize,
     pub artifacts: HashMap<String, AnyArtifact>,
-    staging: Option<Pipe>,
-    pipes: Vec<Pipe>,
+    pub staging: Option<Pipe>,
+    pub pipes: Vec<Pipe>,
 }
 
 impl Default for Graph {
@@ -135,7 +94,7 @@ impl Graph {
     /// 3. Each pipe is turned into a job which is then scheduled for execution at the given executor
     /// 4. After execution, artifacts are collected and the internal state is updated respectively
     ///
-    pub fn execute<E: Executor>(&mut self, mut executor: E) -> Result<&mut Self> {
+    pub fn execute<E: Executor>(&mut self, executor: &mut E) -> Result<&mut Self> {
         self.close();
 
         let mut scns = SCNS::default();
@@ -263,37 +222,5 @@ impl Graph {
         self.generation += 1;
         self.artifacts.extend(artifacts.into_iter());
         Ok(self)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::thread::sleep;
-
-    use super::*;
-
-    #[test]
-    fn test_timeit() {
-        let (duration, _) = timeit(|| sleep(Duration::from_secs_f32(1e-3)));
-        assert!(is_close!(duration.as_secs_f32(), 1e-3, abs_tol = 1e-4));
-
-        let (duration, _) = timeit(|| sleep(Duration::from_secs_f32(1e-2)));
-        assert!(is_close!(duration.as_secs_f32(), 1e-2, abs_tol = 1e-3));
-
-        let (duration, value) = timeit(|| 42);
-        assert!(is_close!(duration.as_secs_f32(), 0., abs_tol = 1e-5));
-        assert_eq!(value, 42);
-    }
-
-    #[test]
-    fn test_sort_topological() {
-        let ordering: Vec<i32> = toposort(vec![]).unwrap();
-        assert_eq!(ordering, [0; 0]);
-
-        let ordering = toposort(vec![(3, 4), (2, 4), (1, 2), (1, 3), (2, 3)]).unwrap();
-        assert_eq!(ordering, [1, 2, 3, 4]);
-
-        assert!(toposort(vec![(1, 2), (2, 1)]).is_err());
-        assert!(toposort(vec![(1, 2), (3, 4), (4, 3)]).is_err());
     }
 }

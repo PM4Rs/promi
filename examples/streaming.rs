@@ -46,7 +46,7 @@ fn example_1() {
 
     let buffer: Vec<u8> = Vec::new();
     let mut reader = xes::XesReader::from(BufReader::new(s.as_bytes()));
-    let mut writer = xes::XesWriter::new(buffer, None, None);
+    let mut writer = xes::XesWriter::with_indent(buffer, b'1', 1);
 
     println!("parse XES string and render it to byte buffer");
     writer.consume(&mut reader).unwrap();
@@ -75,7 +75,7 @@ fn example_2() {
     let mut observer = Observer::new(buffer);
     observer.register(StatsCollector::default());
 
-    let mut writer = xes::XesWriter::new(stdout(), None, None);
+    let mut writer = xes::XesWriter::with_indent(stdout(), b'1', 1);
     let artifacts = writer.consume(&mut observer).unwrap();
 
     println!(

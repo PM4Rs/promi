@@ -40,13 +40,13 @@
 //!            </log>"#;
 //!
 //! let mut reader = xes::XesReader::from(io::BufReader::new(s.as_bytes()));
-//! let mut writer = xes::XesWriter::new(io::stdout(), None, None);
+//! let mut writer = xes::XesWriter::with_indent(io::stdout(), b'1', 1);
 //!
 //! writer.consume(&mut reader).unwrap();
 //! ```
 //!
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::fs::File;
@@ -74,7 +74,7 @@ use crate::{DateTime, Error, Result};
 #[derive(Debug)]
 enum XesComponent {
     Attribute(Attribute),
-    Value(XesValue),
+    Values(XesValue),
     ExtensionDecl(ExtensionDecl),
     Global(Global),
     ClassifierDecl(ClassifierDecl),
@@ -105,9 +105,18 @@ impl TryFrom<XesIntermediate> for Attribute {
             "list" => {
                 let mut attributes: Vec<Attribute> = Vec::new();
 
-                for component in intermediate.components {
-                    if let XesComponent::Value(value) = component {
-                        attributes.extend(value.attributes);
+                for component in intermediate.components.drain(..) {
+                    match component {
+                        XesComponent::Values(value) => attributes.extend(value.attributes),
+                        XesComponent::Attribute(attribute) => {
+                            debug!("ignore child attribute {:?}", attribute)
+                        }
+                        other => {
+                            return Err(Error::XesError(format!(
+                                r#""unexpected XES component: {:?}"#,
+                                other
+                            )))
+                        }
                     }
                 }
 
@@ -116,63 +125,114 @@ impl TryFrom<XesIntermediate> for Attribute {
             attr_key => return Err(Error::KeyError(format!("unknown attribute {}", attr_key))),
         };
 
+        for component in intermediate.components.drain(..) {
+            match component {
+                XesComponent::Attribute(attribute) => {
+                    debug!("ignore child attribute {:?}", attribute)
+                }
+                other => {
+                    return Err(Error::XesError(format!(
+                        r#""unexpected XES component: {:?}"#,
+                        other
+                    )))
+                }
+            }
+        }
+
         Ok(Attribute::new(key_str, value))
     }
 }
 
 impl Attribute {
-    fn write_xes_kv<W: io::Write>(
-        key: &str,
-        value: &AttributeValue,
-        writer: &mut QxWriter<W>,
-    ) -> Result<()> {
+    fn make_events<'a>(key: &'a str, value: &'a AttributeValue) -> Result<Vec<QxEvent<'a>>> {
         let temp_string: String;
+        let mut events: VecDeque<QxEvent> = VecDeque::new();
 
-        let (tag, value) = match value {
-            AttributeValue::String(value) => ("string", value.as_str()),
+        let (tag, value) = match &value {
+            AttributeValue::String(value) => ("string", Some(value.as_str())),
             AttributeValue::Date(value) => {
                 temp_string = value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
-                ("date", temp_string.as_str())
+                ("date", Some(temp_string.as_str()))
             }
             AttributeValue::Int(value) => {
                 temp_string = value.to_string();
-                ("int", temp_string.as_str())
+                ("int", Some(temp_string.as_str()))
             }
             AttributeValue::Float(value) => {
                 temp_string = value.to_string();
-                ("float", temp_string.as_str())
+                ("float", Some(temp_string.as_str()))
             }
-            AttributeValue::Boolean(value) => ("boolean", if *value { "true" } else { "false" }),
-            AttributeValue::Id(value) => ("id", value.as_str()),
+            AttributeValue::Boolean(value) => {
+                ("boolean", Some(if *value { "true" } else { "false" }))
+            }
+            AttributeValue::Id(value) => ("id", Some(value.as_str())),
             AttributeValue::List(attributes) => {
                 let tag_l = b"list";
                 let tag_v = b"values";
                 let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
                 let event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
 
-                event_l.push_attribute(("key", validate_name(key)?));
+                event_l.push_attribute(("key", validate_name(&key)?));
 
-                writer.write_event(QxEvent::Start(event_l))?;
-                writer.write_event(QxEvent::Start(event_v))?;
-                attributes.iter().try_for_each(|a| a.write_xes(writer))?;
-                writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_v)))?;
-                writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag_l)))?;
+                events.push_back(QxEvent::Start(event_l));
+                events.push_back(QxEvent::Start(event_v));
 
-                return Ok(());
+                for attribute in attributes {
+                    events.extend(attribute.as_events()?)
+                }
+
+                events.push_back(QxEvent::End(QxBytesEnd::borrowed(tag_v)));
+                events.push_back(QxEvent::End(QxBytesEnd::borrowed(tag_l)));
+
+                ("list", None)
             }
         };
 
         let tag = tag.as_bytes();
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
-        event.push_attribute(("key", validate_name(key)?));
-        event.push_attribute(("value", value));
+        event.push_attribute(("key", validate_name(&key)?));
 
-        Ok(writer.write_event(QxEvent::Empty(event))?)
+        if let Some(v) = value {
+            event.push_attribute(("value", v))
+        }
+
+        if events.is_empty() {
+            events.push_front(QxEvent::Empty(event));
+        } else {
+            events.push_front(QxEvent::Start(event));
+            events.push_back(QxEvent::End(QxBytesEnd::borrowed(tag)));
+        }
+
+        Ok(Vec::from(events))
     }
 
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
-        Self::write_xes_kv(&self.key, &self.value, writer)
+    fn write_xes_kv<'a, W>(
+        key: &'a str,
+        value: &'a AttributeValue,
+        writer: &mut QxWriter<W>,
+    ) -> Result<()>
+    where
+        W: io::Write,
+    {
+        Self::make_events(key, value)?
+            .into_iter()
+            .try_for_each(|e| writer.write_event(e))
+            .map_err(|e| e.into())
+    }
+
+    fn as_events(&self) -> Result<Vec<QxEvent>> {
+        Self::make_events(&self.key, &self.value)
+    }
+
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
+        self.as_events()
+            .into_iter()
+            .flatten()
+            .try_for_each(|e| writer.write_event(e).map_err(|e| e.into()))
     }
 }
 
@@ -206,7 +266,10 @@ impl TryFrom<XesIntermediate> for ExtensionDecl {
 }
 
 impl ExtensionDecl {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         let tag = b"extension";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -237,7 +300,10 @@ impl TryFrom<XesIntermediate> for Global {
 }
 
 impl Global {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         let tag = b"global";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -269,7 +335,10 @@ impl TryFrom<XesIntermediate> for ClassifierDecl {
 }
 
 impl ClassifierDecl {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         let tag = b"classifier";
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -285,7 +354,10 @@ impl ClassifierDecl {
 }
 
 impl Meta {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         self.extensions
             .iter()
             .try_for_each(|e| e.write_xes(writer))?;
@@ -321,7 +393,10 @@ impl TryFrom<XesIntermediate> for Event {
 }
 
 impl Event {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         let tag = b"event";
         let event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -360,7 +435,10 @@ impl TryFrom<XesIntermediate> for Trace {
 }
 
 impl Trace {
-    fn write_xes<W: io::Write>(&self, writer: &mut QxWriter<W>) -> Result<()> {
+    fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
+    where
+        W: io::Write,
+    {
         let tag = b"trace";
         let event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
@@ -417,7 +495,7 @@ impl TryFrom<XesIntermediate> for XesComponent {
             "string" | "date" | "int" | "float" | "boolean" | "id" | "list" => {
                 Ok(XesComponent::Attribute(Attribute::try_from(intermediate)?))
             }
-            "values" => Ok(XesComponent::Value(XesValue::try_from(intermediate)?)),
+            "values" => Ok(XesComponent::Values(XesValue::try_from(intermediate)?)),
             "extension" => Ok(XesComponent::ExtensionDecl(ExtensionDecl::try_from(
                 intermediate,
             )?)),
@@ -539,7 +617,7 @@ impl<R: io::BufRead> XesReader<R> {
                         return Err(Error::StateError(format!("unexpected: {:?}", attribute)));
                     }
                 }
-                XesComponent::Value(value) => {
+                XesComponent::Values(value) => {
                     return Err(Error::StateError(format!("unexpected: {:?}", value)));
                 }
                 XesComponent::Trace(trace) => {
@@ -637,19 +715,15 @@ pub struct XesWriter<W: io::Write> {
 }
 
 impl<W: io::Write> XesWriter<W> {
-    pub fn new(writer: W, indent_char: Option<u8>, indent_size: Option<usize>) -> Self {
-        let writer = QxWriter::new_with_indent(
-            writer,
-            indent_char.unwrap_or(b'\t'),
-            indent_size.unwrap_or(1),
-        );
-
-        XesWriter { writer }
-    }
-
-    pub fn new_no_indent(writer: W) -> Self {
+    pub fn new(writer: W) -> Self {
         XesWriter {
             writer: QxWriter::new(writer),
+        }
+    }
+
+    pub fn with_indent(writer: W, indent_char: u8, indent_size: usize) -> Self {
+        XesWriter {
+            writer: QxWriter::new_with_indent(writer, indent_char, indent_size),
         }
     }
 }
@@ -763,9 +837,9 @@ impl PluginProvider for XesPluginProvider {
                             .try_int()
                             .map(|v| *v as usize)?;
                         Ok(Box::new(if indent > 0 {
-                            XesWriter::new(writer, None, Some(indent))
+                            XesWriter::with_indent(writer, b'\t', indent)
                         } else {
-                            XesWriter::new_no_indent(writer)
+                            XesWriter::new(writer)
                         }))
                     })),
                 ),
@@ -787,7 +861,7 @@ mod tests {
 
     use super::*;
 
-    fn deserialize_dir(path: PathBuf, expect_failure: bool) {
+    fn deserialize_directory(path: PathBuf, expect_failure: bool) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
             let mut reader = XesReader::from(join_static_reader!(&p.path()));
             let result = consume(&mut reader);
@@ -811,27 +885,27 @@ mod tests {
 
     // Parse files that comply with the standard.
     #[test]
-    fn test_deserialize_correct() {
-        deserialize_dir(join_static!("xes", "correct"), false);
+    fn test_deserialize_correct_files() {
+        deserialize_directory(join_static!("xes", "correct"), false);
     }
 
     // Parse files that technically don't comply with the standard but can be parsed safely.
     #[test]
-    fn test_deserialize_recoverable() {
-        deserialize_dir(join_static!("xes", "recoverable"), false);
+    fn test_deserialize_recoverable_files() {
+        deserialize_directory(join_static!("xes", "recoverable"), false);
     }
 
-    // Import incorrect files, expecting Failure.
+    // Parse incorrect files, expecting Failure.
     #[test]
-    fn test_deserialize_non_parsing() {
-        deserialize_dir(join_static!("xes", "non_parsing"), true);
+    fn test_deserialize_non_parsing_files() {
+        deserialize_directory(join_static!("xes", "non_parsing"), true);
     }
 
     // Import incorrect files that parse successfully. Most of these error classes can be caught by
     // XesValidator.
     #[test]
-    fn test_deserialize_non_validating() {
-        deserialize_dir(join_static!("xes", "non_validating"), false);
+    fn test_non_validating_files() {
+        deserialize_directory(join_static!("xes", "non_validating"), false);
     }
 
     fn validate_xes(xes: &[u8]) -> Output {
@@ -845,12 +919,11 @@ mod tests {
             .stderr(Stdio::piped())
             .spawn()
             .expect("xmllint installed?");
-
         child.stdin.as_mut().unwrap().write_all(xes).unwrap();
         child.wait_with_output().unwrap()
     }
 
-    fn validate_dir(path: PathBuf) {
+    fn validate_directory(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
             let mut buffer = Buffer::default();
             let mut reader = XesReader::from(join_static_reader!(&p.path()));
@@ -861,7 +934,7 @@ mod tests {
 
             // serialize to XML
             let bytes: Vec<u8> = Vec::new();
-            let mut writer = XesWriter::new(bytes, None, None);
+            let mut writer = XesWriter::with_indent(bytes, b'\t', 1);
             writer.consume(&mut buffer).unwrap();
 
             let validation_result = validate_xes(&writer.into_inner()[..]);
@@ -879,11 +952,12 @@ mod tests {
     // This test requires `xmllint` to be available in path.
     #[test]
     fn test_serialize_syntax() {
-        validate_dir(join_static!("xes", "correct"));
-        validate_dir(join_static!("xes", "recoverable"));
+        validate_directory(join_static!("xes", "correct"));
+        validate_directory(join_static!("xes", "recoverable"));
     }
 
-    fn serde_loop_dir(path: PathBuf) {
+    // deserialize-serialize-deserialize-serialize XES, check whether outputs are consistent
+    fn serialize_deserialize_identity(path: PathBuf) {
         for p in fs::read_dir(path).unwrap().map(|p| p.unwrap()) {
             let mut buffer = Buffer::default();
             let mut snapshots: Vec<Vec<u8>> = Vec::new();
@@ -895,7 +969,7 @@ mod tests {
             for _ in 0..2 {
                 // serialize to XML
                 let bytes: Vec<u8> = Vec::new();
-                let mut writer = XesWriter::new(bytes, None, None);
+                let mut writer = XesWriter::with_indent(bytes, b'1', 1);
                 writer.consume(&mut buffer).unwrap();
 
                 // make snapshot
@@ -906,7 +980,7 @@ mod tests {
                 let mut reader = XesReader::from(io::Cursor::new(bytes));
                 buffer
                     .consume(&mut reader)
-                    .expect(format!("{:?}", p.path()).as_str());
+                    .unwrap_or_else(|_| panic!("{:?}", p.path()));
             }
 
             for (s1, s2) in snapshots.iter().zip(&snapshots[1..]) {
@@ -919,7 +993,7 @@ mod tests {
     // semantics.
     #[test]
     fn test_serialize_semantics() {
-        serde_loop_dir(join_static!("xes", "correct"));
-        serde_loop_dir(join_static!("xes", "recoverable"));
+        serialize_deserialize_identity(join_static!("xes", "correct"));
+        serialize_deserialize_identity(join_static!("xes", "recoverable"));
     }
 }

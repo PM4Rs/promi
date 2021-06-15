@@ -1,12 +1,11 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
 use crate::stream::channel::{StreamReceiver, StreamSender};
 use crate::stream::flow::util::{ArtifactReceiver, ArtifactSender, ACNS, SCNS};
-use crate::stream::plugin::{AttrMap, REGISTRY};
-use crate::stream::{AnyArtifact, Attribute, Sink, Stream};
+use crate::stream::plugin::REGISTRY;
+use crate::stream::{AnyArtifact, Attribute, AttributeMap, Sink, Stream};
 use crate::{Error, Result};
 
 /// Atomic unit of a pipe
@@ -19,10 +18,10 @@ pub struct Segment {
     name: String,
     #[serde(
         default,
-        skip_serializing_if = "HashMap::is_empty",
+        skip_serializing_if = "AttributeMap::is_empty",
         rename = "attributes"
     )]
-    attributes_: AttrMap,
+    attributes_: AttributeMap,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stream_sender: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -38,7 +37,7 @@ impl Segment {
     pub fn new<N: Into<String>>(name: N) -> Self {
         Self {
             name: name.into(),
-            attributes_: HashMap::new(),
+            attributes_: AttributeMap::new(),
             stream_sender: Vec::new(),
             stream_receiver: Vec::new(),
             artifact_sender: Vec::new(),
@@ -47,40 +46,57 @@ impl Segment {
     }
 
     /// Add a single attribute to segment
-    pub fn attribute(mut self, attribute: Attribute) -> Self {
-        self.attributes_.insert(attribute.key, attribute.value);
+    pub fn attribute<A>(mut self, attribute: A) -> Self
+    where
+        A: Into<Attribute>,
+    {
+        self.attributes_.insert(attribute);
         self
     }
 
     /// Add multiple attributes to segment
-    pub fn attributes<A: IntoIterator<Item = Attribute>>(mut self, attributes: A) -> Self {
-        attributes
-            .into_iter()
-            .map(|a| self.attributes_.insert(a.key, a.value))
-            .for_each(drop);
+    pub fn attributes<A>(mut self, attributes: A) -> Self
+    where
+        A: IntoIterator<Item = Attribute>,
+    {
+        attributes.into_iter().for_each(|a| {
+            self.attributes_.insert(a);
+        });
         self
     }
 
     /// Acquire sending stream channel endpoint
-    pub fn emit_stream<S: Into<String>>(mut self, sender: S) -> Self {
+    pub fn emit_stream<S>(mut self, sender: S) -> Self
+    where
+        S: Into<String>,
+    {
         self.stream_sender.push(sender.into());
         self
     }
 
     /// Acquire receiving stream channel endpoint
-    pub fn acquire_stream<S: Into<String>>(mut self, receiver: S) -> Self {
+    pub fn acquire_stream<S>(mut self, receiver: S) -> Self
+    where
+        S: Into<String>,
+    {
         self.stream_receiver.push(receiver.into());
         self
     }
 
     /// Acquire sending artifact channel endpoint
-    pub fn emit_artifact<S: Into<String>>(mut self, sender: S) -> Self {
+    pub fn emit_artifact<S>(mut self, sender: S) -> Self
+    where
+        S: Into<String>,
+    {
         self.artifact_sender.push(sender.into());
         self
     }
 
     /// Acquire receiving artifact channel endpoint
-    pub fn acquire_artifact<S: Into<String>>(mut self, receiver: S) -> Self {
+    pub fn acquire_artifact<S>(mut self, receiver: S) -> Self
+    where
+        S: Into<String>,
+    {
         self.artifact_receiver.push(receiver.into());
         self
     }
@@ -132,7 +148,7 @@ impl Segment {
 
 pub(in crate::stream::flow) struct PreparedSegment {
     name: String,
-    attributes: AttrMap,
+    attributes: AttributeMap,
     pub stream_sender: Vec<(String, StreamSender)>,
     pub stream_receiver: Vec<(String, StreamReceiver)>,
     pub artifact_sender: Vec<(String, ArtifactSender)>,

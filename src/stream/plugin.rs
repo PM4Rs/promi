@@ -12,14 +12,12 @@ use crate::stream::stats::StatsCollector;
 use crate::stream::validator::Validator;
 use crate::stream::void::Void;
 use crate::stream::xes::XesPluginProvider;
-use crate::stream::{AnyArtifact, AttributeValue, Sink, Stream};
+use crate::stream::{AnyArtifact, Attribute, AttributeMap, Sink, Stream};
 use crate::{Error, Result};
-
-pub type AttrMap = HashMap<String, AttributeValue>;
 
 /// Parametrisation for [`StreamFactory`] and ['SinkFactory']
 pub struct Parameters<'a> {
-    attributes: AttrMap,
+    attributes: AttributeMap,
     artifacts: HashMap<String, &'a mut AnyArtifact>,
     artifacts_anon: Vec<&'a mut AnyArtifact>,
     streams: HashMap<String, Box<dyn Stream + 'a>>,
@@ -30,7 +28,7 @@ pub struct Parameters<'a> {
 
 impl<'a> Parameters<'a> {
     /// Try to acquire an attribute by name
-    pub fn acquire_attribute(&mut self, key: &str) -> Result<AttributeValue> {
+    pub fn acquire_attribute(&mut self, key: &str) -> Result<Attribute> {
         self.attributes
             .remove(key)
             .ok_or_else(|| Error::StreamError(format!("no attribute {:?}", key)))
@@ -102,7 +100,7 @@ impl<'a> Parameters<'a> {
 ///
 #[derive(Debug, Clone)]
 pub struct Declaration {
-    attributes: Vec<(String, String, Option<AttributeValue>)>,
+    attributes: Vec<(String, String, Option<Attribute>)>,
     artifacts: Vec<(String, String)>,
     streams: Vec<(String, String)>,
     sinks: Vec<(String, String)>,
@@ -128,14 +126,15 @@ impl Declaration {
     }
 
     /// Register attribute with default value
-    pub fn default_attr<S: Into<String>, D: Into<String>, V: Fn() -> AttributeValue>(
-        mut self,
-        name: S,
-        description: D,
-        default: V,
-    ) -> Self {
+    pub fn default_attr<S, D, V>(mut self, name: S, description: D, default: V) -> Self
+    where
+        S: Into<String>,
+        D: Into<String>,
+        V: Fn(String) -> Attribute,
+    {
+        let name = name.into();
         self.attributes
-            .push((name.into(), description.into(), Some(default())));
+            .push((name.clone(), description.into(), Some(default(name))));
         self
     }
 
@@ -159,7 +158,7 @@ impl Declaration {
 
     fn make<'a>(
         &self,
-        mut attributes: AttrMap,
+        mut attributes: AttributeMap,
         artifacts: &'a mut [AnyArtifact],
         streams: Vec<Box<dyn Stream + 'a>>,
         sinks: Vec<Box<dyn Sink + 'a>>,
@@ -168,21 +167,18 @@ impl Declaration {
         let mut streams = streams.into_iter();
         let mut sinks = sinks.into_iter();
 
-        let mut attribute_map = HashMap::new();
+        let mut attribute_map = AttributeMap::new();
         let mut artifact_map = HashMap::new();
         let mut stream_map = HashMap::new();
         let mut sink_map = HashMap::new();
 
         for (name, _, default) in self.attributes.iter() {
-            attribute_map.insert(
-                name.clone(),
-                attributes
-                    .remove(name)
-                    .or_else(|| default.clone())
-                    .ok_or_else(|| {
-                        Error::StreamError(format!("attribute {:?} is missing", &name))
-                    })?,
-            );
+            let mut attribute = attributes
+                .remove(name)
+                .or_else(|| default.clone())
+                .ok_or_else(|| Error::StreamError(format!("attribute {:?} is missing", &name)))?;
+            attribute.key = name.into();
+            attribute_map.insert(attribute);
         }
 
         attribute_map.extend(attributes.into_iter());
@@ -257,7 +253,7 @@ impl Factory {
     /// Try to build a [`Stream`] object
     pub fn build_stream<'a>(
         &self,
-        attributes: AttrMap,
+        attributes: AttributeMap,
         artifacts: &'a mut [AnyArtifact],
         streams: Vec<Box<dyn Stream + 'a>>,
         sinks: Vec<Box<dyn Sink + 'a>>,
@@ -278,7 +274,7 @@ impl Factory {
     /// Try to build a [`Sink`] object
     pub fn build_sink<'a>(
         &self,
-        attributes: AttrMap,
+        attributes: AttributeMap,
         artifacts: &'a mut [AnyArtifact],
         streams: Vec<Box<dyn Stream + 'a>>,
         sinks: Vec<Box<dyn Sink + 'a>>,
@@ -416,10 +412,12 @@ pub fn log_plugins() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
+
+    use serde::{Deserialize, Serialize};
+
     use crate::dev_util::logging;
     use crate::stream::Artifact;
-    use serde::{Deserialize, Serialize};
-    use std::any::Any;
 
     use super::*;
 
@@ -448,7 +446,7 @@ mod tests {
         logging();
 
         let declaration = Declaration::default()
-            .default_attr("foo", "some description", || 42.into())
+            .default_attr("foo", "some description", |k| (k, 42).into())
             .attribute("bar", "some description")
             .artifact("foo", "some description")
             .artifact("bar", "some description")
@@ -457,10 +455,7 @@ mod tests {
             .sink("foo", "some description")
             .sink("bar", "some description");
 
-        let atr_extra: HashMap<String, AttributeValue> =
-            vec![("bar".into(), 13.into()), ("baz".into(), 37.into())]
-                .into_iter()
-                .collect();
+        let atr_extra: AttributeMap = vec![("bar", 13), ("baz", 37)].into_iter().into();
         let art_extra: &mut [AnyArtifact] = &mut [
             TestArtifact::default().into(),
             TestArtifact::default().into(),
@@ -484,6 +479,7 @@ mod tests {
             *parameters
                 .acquire_attribute("foo")
                 .unwrap()
+                .value
                 .try_int()
                 .unwrap(),
             42
@@ -492,6 +488,7 @@ mod tests {
             *parameters
                 .acquire_attribute("bar")
                 .unwrap()
+                .value
                 .try_int()
                 .unwrap(),
             13
@@ -500,6 +497,7 @@ mod tests {
             *parameters
                 .acquire_attribute("baz")
                 .unwrap()
+                .value
                 .try_int()
                 .unwrap(),
             37
@@ -538,7 +536,7 @@ mod tests {
         logging();
 
         let decl_atr = Declaration::default()
-            .default_attr("foo", "some description", || 0.into())
+            .default_attr("foo", "some description", |k| (k, 0).into())
             .attribute("bar", "some description");
 
         let decl_art = Declaration::default()
@@ -553,7 +551,7 @@ mod tests {
             .sink("foo", "some description")
             .sink("bar", "some description");
 
-        let atr_err: HashMap<String, AttributeValue> = vec![].into_iter().collect();
+        let atr_err: AttributeMap = AttributeMap::new();
         let mut art_err: &mut [AnyArtifact] = &mut [TestArtifact::default().into()];
         let str_err: Vec<Box<dyn Stream>> = vec![Box::new(Void::default())];
         let snk_err: Vec<Box<dyn Sink>> = vec![Box::new(Void::default())];

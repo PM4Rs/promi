@@ -4,7 +4,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::stream::{
-    AttributeValue, Attributes, Component, ComponentType, Event, Meta, Sink, Trace,
+    Attribute, AttributeContainer, AttributeValue, Component, ComponentType, Event, Meta, Sink,
+    Trace,
 };
 use crate::Result;
 
@@ -35,16 +36,20 @@ impl Default for Log {
     }
 }
 
-impl Attributes for Log {
-    fn get(&self, key: &str) -> Option<&AttributeValue> {
-        self.meta.attributes.get(key)
+impl AttributeContainer for Log {
+    fn get_value(&self, key: &str) -> Option<&AttributeValue> {
+        self.meta.attributes.get_value(key)
     }
 
-    fn children(&self) -> Vec<&dyn Attributes> {
+    fn get_children(&self, key: &str) -> Option<&[Attribute]> {
+        self.meta.attributes.get_children(key)
+    }
+
+    fn inner(&self) -> Vec<&dyn AttributeContainer> {
         self.traces
             .iter()
-            .map(|t| t as &dyn Attributes)
-            .chain(self.events.iter().map(|e| e as &dyn Attributes))
+            .map(|t| t as &dyn AttributeContainer)
+            .chain(self.events.iter().map(|e| e as &dyn AttributeContainer))
             .collect()
     }
 

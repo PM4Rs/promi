@@ -16,25 +16,25 @@
 //! pg.source(
 //!     "Train",
 //!     Segment::new("XesReader")
-//!         .attribute(Attribute::new("path", path)))
+//!         .attribute(("path", path)))
 //!     .stream(Segment::new("Repair"))?
 //!     .stream(Segment::new("Validator"))?
 //!     .stream(Segment::new("Statistics")
 //!         .emit_artifact("raw_stats"))?
 //!     .stream(Segment::new("Sample")
-//!         .attribute(Attribute::new("ratio", 0.1))
-//!         .attribute(Attribute::new("seed", 0)))?
+//!         .attribute(("ratio", 0.1))
+//!         .attribute(("seed", 0)))?
 //!     .stream(Segment::new("Statistics")
 //!         .emit_artifact("sample_stats"))?
 //!     .stream(Segment::new("Split")
-//!         .attribute(Attribute::new("ratio", 0.8))
-//!         .attribute(Attribute::new("seed", 0))
+//!         .attribute(("ratio", 0.8))
+//!         .attribute(("seed", 0))
 //!         .emit_stream("test"))?
 //!     .stream(Segment::new("Statistics")
 //!         .emit_artifact("train_stats"))?
 //!     .sink(Segment::new("XesWriter")
-//!         .attribute(Attribute::new("path", "/tmp/train.xes"))
-//!         .attribute(Attribute::new("indent", 1)))?;
+//!         .attribute(("path", "/tmp/train.xes"))
+//!         .attribute(("indent", 1)))?;
 //!
 //! pg.source(
 //!     "Test",
@@ -43,7 +43,7 @@
 //!     .stream(Segment::new("Statistics")
 //!         .emit_artifact("test_stats"))?
 //!     .sink(Segment::new("XesWriter")
-//!         .attribute(Attribute::new("path","/tmp/test.xes")))?;
+//!         .attribute(("path","/tmp/test.xes")))?;
 //!
 //! pg.execute(&mut ThreadExecutor::default())?;
 //!

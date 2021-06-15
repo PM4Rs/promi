@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use crate::stream::{Attribute, AttributeValue};
+use crate::stream::{Attribute, AttributeContainer, AttributeMap, AttributeValue};
 use crate::{Error, Result};
 
 /// Tells whether global/classifier target events or traces
@@ -51,9 +50,9 @@ pub struct Global {
 
 impl Global {
     /// Validate any item that implements the `Attributes` trait without considering its scope
-    pub fn validate(&self, component: &dyn Attributes) -> Result<()> {
+    pub fn validate(&self, component: &dyn AttributeContainer) -> Result<()> {
         for attribute in self.attributes.iter() {
-            if let Some(other) = component.get(&attribute.key) {
+            if let Some(other) = component.get_value(&attribute.key) {
                 if attribute.hint() != other.type_hint() {
                     return Err(Error::ValidationError(format!(
                         "Expected \"{:?}\" to be of type {:?} but got {:?} instead",
@@ -87,7 +86,7 @@ pub struct Meta {
     pub extensions: Vec<ExtensionDecl>,
     pub globals: Vec<Global>,
     pub classifiers: Vec<ClassifierDecl>,
-    pub attributes: BTreeMap<String, AttributeValue>,
+    pub attributes: AttributeMap,
 }
 
 impl Default for Meta {
@@ -96,8 +95,22 @@ impl Default for Meta {
             extensions: Vec::new(),
             globals: Vec::new(),
             classifiers: Vec::new(),
-            attributes: BTreeMap::new(),
+            attributes: AttributeMap::new(),
         }
+    }
+}
+
+impl AttributeContainer for Meta {
+    fn get_value(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get_value(key)
+    }
+
+    fn get_children(&self, key: &str) -> Option<&[Attribute]> {
+        self.attributes.get_children(key)
+    }
+
+    fn hint(&self) -> ComponentType {
+        ComponentType::Meta
     }
 }
 
@@ -112,14 +125,28 @@ impl Default for Meta {
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
-    pub attributes: BTreeMap<String, AttributeValue>,
+    pub attributes: AttributeMap,
 }
 
 impl Default for Event {
     fn default() -> Self {
         Self {
-            attributes: BTreeMap::new(),
+            attributes: AttributeMap::new(),
         }
+    }
+}
+
+impl AttributeContainer for Event {
+    fn get_value(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get_value(key)
+    }
+
+    fn get_children(&self, key: &str) -> Option<&[Attribute]> {
+        self.attributes.get_children(key)
+    }
+
+    fn hint(&self) -> ComponentType {
+        ComponentType::Event
     }
 }
 
@@ -133,17 +160,46 @@ impl Default for Event {
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trace {
-    pub attributes: BTreeMap<String, AttributeValue>,
+    pub attributes: AttributeMap,
     pub events: Vec<Event>,
 }
 
 impl Default for Trace {
     fn default() -> Self {
         Self {
-            attributes: BTreeMap::new(),
+            attributes: AttributeMap::new(),
             events: Vec::new(),
         }
     }
+}
+
+impl AttributeContainer for Trace {
+    fn get_value(&self, key: &str) -> Option<&AttributeValue> {
+        self.attributes.get_value(key)
+    }
+
+    fn get_children(&self, key: &str) -> Option<&[Attribute]> {
+        self.attributes.get_children(key)
+    }
+
+    fn inner(&self) -> Vec<&dyn AttributeContainer> {
+        self.events
+            .iter()
+            .map(|e| e as &dyn AttributeContainer)
+            .collect()
+    }
+
+    fn hint(&self) -> ComponentType {
+        ComponentType::Trace
+    }
+}
+
+/// State of an extensible event stream
+#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
+pub enum ComponentType {
+    Meta,
+    Trace,
+    Event,
 }
 
 /// Atomic unit of an extensible event stream
@@ -154,12 +210,38 @@ pub enum Component {
     Event(Event),
 }
 
-/// State of an extensible event stream
-#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
-pub enum ComponentType {
-    Meta,
-    Trace,
-    Event,
+impl AttributeContainer for Component {
+    fn get_value(&self, key: &str) -> Option<&AttributeValue> {
+        match self {
+            Component::Meta(meta) => meta.get_value(key),
+            Component::Trace(trace) => trace.get_value(key),
+            Component::Event(event) => event.get_value(key),
+        }
+    }
+
+    fn get_children(&self, key: &str) -> Option<&[Attribute]> {
+        match self {
+            Component::Meta(meta) => meta.get_children(key),
+            Component::Trace(trace) => trace.get_children(key),
+            Component::Event(event) => event.get_children(key),
+        }
+    }
+
+    fn inner(&self) -> Vec<&dyn AttributeContainer> {
+        match self {
+            Component::Meta(meta) => meta.inner(),
+            Component::Trace(trace) => trace.inner(),
+            Component::Event(event) => event.inner(),
+        }
+    }
+
+    fn hint(&self) -> ComponentType {
+        match self {
+            Component::Meta(meta) => meta.hint(),
+            Component::Trace(trace) => trace.hint(),
+            Component::Event(event) => event.hint(),
+        }
+    }
 }
 
 // TODO: Once `ops::Try` lands in stable, replace ResOpt by something like:
@@ -172,85 +254,3 @@ pub enum ComponentType {
 // ```
 /// Container for stream components that can express the empty components as well as errors
 pub type ResOpt = Result<Option<Component>>;
-
-/// Provide a unified way to access an component's attributes and those of potential child components
-pub trait Attributes {
-    /// Try to return an attribute by its key
-    fn get(&self, key: &str) -> Option<&AttributeValue>;
-
-    /// Try to return an attribute by its key and rise an error it the key is not present
-    fn get_or(&self, key: &str) -> Result<&AttributeValue> {
-        match self.get(key) {
-            Some(value) => Ok(value),
-            None => Err(Error::KeyError(key.to_string())),
-        }
-    }
-
-    /// Access child components of this component
-    fn children(&self) -> Vec<&dyn Attributes> {
-        vec![]
-    }
-
-    /// Tell the caller what kind of object this view refers to
-    fn hint(&self) -> ComponentType;
-}
-
-impl Attributes for Meta {
-    fn get(&self, key: &str) -> Option<&AttributeValue> {
-        self.attributes.get(key)
-    }
-
-    fn hint(&self) -> ComponentType {
-        ComponentType::Meta
-    }
-}
-
-impl Attributes for Trace {
-    fn get(&self, key: &str) -> Option<&AttributeValue> {
-        self.attributes.get(key)
-    }
-
-    fn children(&self) -> Vec<&dyn Attributes> {
-        self.events.iter().map(|e| e as &dyn Attributes).collect()
-    }
-
-    fn hint(&self) -> ComponentType {
-        ComponentType::Trace
-    }
-}
-
-impl Attributes for Event {
-    fn get(&self, key: &str) -> Option<&AttributeValue> {
-        self.attributes.get(key)
-    }
-
-    fn hint(&self) -> ComponentType {
-        ComponentType::Event
-    }
-}
-
-impl Attributes for Component {
-    fn get(&self, key: &str) -> Option<&AttributeValue> {
-        match self {
-            Component::Meta(meta) => meta.get(key),
-            Component::Trace(trace) => trace.get(key),
-            Component::Event(event) => event.get(key),
-        }
-    }
-
-    fn children(&self) -> Vec<&dyn Attributes> {
-        match self {
-            Component::Meta(meta) => meta.children(),
-            Component::Trace(trace) => trace.children(),
-            Component::Event(event) => event.children(),
-        }
-    }
-
-    fn hint(&self) -> ComponentType {
-        match self {
-            Component::Meta(meta) => meta.hint(),
-            Component::Trace(trace) => trace.hint(),
-            Component::Event(event) => event.hint(),
-        }
-    }
-}

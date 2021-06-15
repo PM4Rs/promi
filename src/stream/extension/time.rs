@@ -5,10 +5,10 @@ use std::ops::Neg;
 use chrono::Duration;
 
 use crate::error::Result;
-use crate::stream::extension::{Attributes, Extension};
+use crate::stream::extension::Extension;
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ComponentType, Meta};
+use crate::stream::{AttributeContainer, ComponentType, Meta};
 use crate::{DateTime, Error};
 
 #[derive(Debug)]
@@ -89,21 +89,21 @@ impl<'a> Extension<'a> for Time<'a> {
     const PREFIX: &'static str = "time";
     const URI: &'static str = "http://www.xes-standard.org/time.xesext";
 
-    fn view<T: Attributes + ?Sized>(component: &'a T) -> Result<Self> {
+    fn view<T: AttributeContainer + ?Sized>(component: &'a T) -> Result<Self> {
         let origin = component.hint();
         let time = match origin {
             ComponentType::Event => {
-                TimeType::Timestamp(component.get_or("time:timestamp")?.try_date()?)
+                TimeType::Timestamp(component.get_value_or("time:timestamp")?.try_date()?)
             }
-            ComponentType::Trace => match &component.children()[..] {
+            ComponentType::Trace => match &component.inner()[..] {
                 [] => return Err(Error::ExtensionError("no interval found".to_string())),
                 [x] => {
-                    let x = x.get_or("time:timestamp")?.try_date()?;
+                    let x = x.get_value_or("time:timestamp")?.try_date()?;
                     TimeType::Interval((x, x))
                 }
                 [x, .., y] => {
-                    let x = x.get_or("time:timestamp")?.try_date()?;
-                    let y = y.get_or("time:timestamp")?.try_date()?;
+                    let x = x.get_value_or("time:timestamp")?.try_date()?;
+                    let y = y.get_value_or("time:timestamp")?.try_date()?;
 
                     if x > y {
                         return Err(Error::ExtensionError(format!(
@@ -128,7 +128,7 @@ impl<'a> Extension<'a> for Time<'a> {
 
     fn validator(_meta: &Meta) -> ValidatorFn {
         Box::new(|x| {
-            let children = x.children();
+            let children = x.inner();
 
             for slice in children[..].windows(2) {
                 match slice {
@@ -153,34 +153,36 @@ impl<'a> Extension<'a> for Time<'a> {
 }
 
 impl Time<'_> {
-    pub fn filter_eq<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_eq<'a, T: 'a + AttributeContainer>(other: &'a TimeType) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.is_eq(other)))
     }
 
-    pub fn filter_eq_tol<'a, T: 'a + Attributes>(
+    pub fn filter_eq_tol<'a, T: 'a + AttributeContainer>(
         other: &'a TimeType,
         tolerance: &'a Duration,
     ) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.is_eq_tol(other, tolerance)))
     }
 
-    pub fn filter_before<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_before<'a, T: 'a + AttributeContainer>(other: &'a TimeType) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.is_before(other)))
     }
 
-    pub fn filter_after<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_after<'a, T: 'a + AttributeContainer>(other: &'a TimeType) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.is_after(&other)))
     }
 
-    pub fn filter_in<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_in<'a, T: 'a + AttributeContainer>(other: &'a TimeType) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.is_in(other)))
     }
 
-    pub fn filter_starts_in<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_starts_in<'a, T: 'a + AttributeContainer>(
+        other: &'a TimeType,
+    ) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.starts_in(other)))
     }
 
-    pub fn filter_ends_in<'a, T: 'a + Attributes>(other: &'a TimeType) -> Condition<'a, T> {
+    pub fn filter_ends_in<'a, T: 'a + AttributeContainer>(other: &'a TimeType) -> Condition<'a, T> {
         Box::new(move |x: &T| Ok(Time::view(x)?.time.ends_in(other)))
     }
 }

@@ -46,7 +46,7 @@
 //! ```
 //!
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::convert::{From, TryFrom};
 use std::fmt::Debug;
 use std::fs::File;
@@ -66,8 +66,8 @@ use crate::stream::xml_util::{
     parse_bool, validate_name, validate_ncname, validate_token, validate_uri,
 };
 use crate::stream::{
-    Attribute, AttributeValue, ClassifierDecl, Component, Event, ExtensionDecl, Global, Meta,
-    ResOpt, Scope, Sink, Stream, Trace,
+    Attribute, AttributeMap, AttributeValue, ClassifierDecl, Component, Event, ExtensionDecl,
+    Global, Meta, ResOpt, Scope, Sink, Stream, Trace,
 };
 use crate::{DateTime, Error, Result};
 
@@ -94,6 +94,7 @@ impl TryFrom<XesIntermediate> for Attribute {
     fn try_from(mut intermediate: XesIntermediate) -> Result<Self> {
         let key_str = intermediate.pop("key")?;
         let val_str = intermediate.pop("value");
+        let mut children = Vec::new();
 
         let value = match intermediate.type_name.as_str() {
             "string" => AttributeValue::String(val_str?),
@@ -108,9 +109,7 @@ impl TryFrom<XesIntermediate> for Attribute {
                 for component in intermediate.components.drain(..) {
                     match component {
                         XesComponent::Values(value) => attributes.extend(value.attributes),
-                        XesComponent::Attribute(attribute) => {
-                            debug!("ignore child attribute {:?}", attribute)
-                        }
+                        XesComponent::Attribute(attribute) => children.push(attribute),
                         other => {
                             return Err(Error::XesError(format!(
                                 r#""unexpected XES component: {:?}"#,
@@ -127,9 +126,7 @@ impl TryFrom<XesIntermediate> for Attribute {
 
         for component in intermediate.components.drain(..) {
             match component {
-                XesComponent::Attribute(attribute) => {
-                    debug!("ignore child attribute {:?}", attribute)
-                }
+                XesComponent::Attribute(attribute) => children.push(attribute),
                 other => {
                     return Err(Error::XesError(format!(
                         r#""unexpected XES component: {:?}"#,
@@ -139,14 +136,26 @@ impl TryFrom<XesIntermediate> for Attribute {
             }
         }
 
-        Ok(Attribute::new(key_str, value))
+        Ok(if children.is_empty() {
+            Attribute::new(key_str, value)
+        } else {
+            Attribute::with_children(key_str, value, children)
+        })
     }
 }
 
 impl Attribute {
-    fn make_events<'a>(key: &'a str, value: &'a AttributeValue) -> Result<Vec<QxEvent<'a>>> {
+    fn components_as_events<'a>(
+        key: &'a str,
+        value: &'a AttributeValue,
+        children: &'a [Attribute],
+    ) -> Result<Vec<QxEvent<'a>>> {
         let temp_string: String;
         let mut events: VecDeque<QxEvent> = VecDeque::new();
+
+        for child in children.iter() {
+            events.extend(child.as_events()?);
+        }
 
         let (tag, value) = match &value {
             AttributeValue::String(value) => ("string", Some(value.as_str())),
@@ -167,14 +176,9 @@ impl Attribute {
             }
             AttributeValue::Id(value) => ("id", Some(value.as_str())),
             AttributeValue::List(attributes) => {
-                let tag_l = b"list";
                 let tag_v = b"values";
-                let mut event_l = QxBytesStart::owned(tag_l.to_vec(), tag_l.len());
                 let event_v = QxBytesStart::owned(tag_v.to_vec(), tag_v.len());
 
-                event_l.push_attribute(("key", validate_name(&key)?));
-
-                events.push_back(QxEvent::Start(event_l));
                 events.push_back(QxEvent::Start(event_v));
 
                 for attribute in attributes {
@@ -182,7 +186,6 @@ impl Attribute {
                 }
 
                 events.push_back(QxEvent::End(QxBytesEnd::borrowed(tag_v)));
-                events.push_back(QxEvent::End(QxBytesEnd::borrowed(tag_l)));
 
                 ("list", None)
             }
@@ -207,22 +210,23 @@ impl Attribute {
         Ok(Vec::from(events))
     }
 
-    fn write_xes_kv<'a, W>(
+    fn as_events(&self) -> Result<Vec<QxEvent>> {
+        Self::components_as_events(&self.key, &self.value, &self.children)
+    }
+
+    fn components_write_xes<'a, W>(
         key: &'a str,
         value: &'a AttributeValue,
+        children: &'a [Attribute],
         writer: &mut QxWriter<W>,
     ) -> Result<()>
     where
         W: io::Write,
     {
-        Self::make_events(key, value)?
+        Self::components_as_events(key, value, children)?
             .into_iter()
             .try_for_each(|e| writer.write_event(e))
             .map_err(|e| e.into())
-    }
-
-    fn as_events(&self) -> Result<Vec<QxEvent>> {
-        Self::make_events(&self.key, &self.value)
     }
 
     fn write_xes<W>(&self, writer: &mut QxWriter<W>) -> Result<()>
@@ -367,7 +371,7 @@ impl Meta {
             .try_for_each(|c| c.write_xes(writer))?;
         self.attributes
             .iter()
-            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
+            .try_for_each(|(k, v, c)| Attribute::components_write_xes(k, v, c, writer))?;
 
         Ok(())
     }
@@ -377,12 +381,12 @@ impl TryFrom<XesIntermediate> for Event {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
+        let mut attributes = AttributeMap::new();
 
         for component in intermediate.components {
             match component {
                 XesComponent::Attribute(attribute) => {
-                    attributes.insert(attribute.key, attribute.value);
+                    attributes.insert(attribute);
                 }
                 other => warn!("unexpected child component of event: {:?}, ignore", other),
             }
@@ -403,7 +407,7 @@ impl Event {
         writer.write_event(QxEvent::Start(event))?;
         self.attributes
             .iter()
-            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
+            .try_for_each(|(k, v, c)| Attribute::components_write_xes(k, v, c, writer))?;
         writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
         Ok(())
@@ -414,13 +418,13 @@ impl TryFrom<XesIntermediate> for Trace {
     type Error = Error;
 
     fn try_from(intermediate: XesIntermediate) -> Result<Self> {
-        let mut attributes: BTreeMap<String, AttributeValue> = BTreeMap::new();
+        let mut attributes = AttributeMap::new();
         let mut traces: Vec<Event> = Vec::new();
 
         for component in intermediate.components {
             match component {
                 XesComponent::Attribute(attribute) => {
-                    attributes.insert(attribute.key, attribute.value);
+                    attributes.insert(attribute);
                 }
                 XesComponent::Event(event) => traces.push(event),
                 other => warn!("unexpected child component of trace: {:?}, ignore", other),
@@ -445,7 +449,7 @@ impl Trace {
         writer.write_event(QxEvent::Start(event))?;
         self.attributes
             .iter()
-            .try_for_each(|(k, v)| Attribute::write_xes_kv(k, v, writer))?;
+            .try_for_each(|(k, v, c)| Attribute::components_write_xes(k, v, c, writer))?;
         self.events.iter().try_for_each(|e| e.write_xes(writer))?;
         writer.write_event(QxEvent::End(QxBytesEnd::borrowed(tag)))?;
 
@@ -471,7 +475,7 @@ impl TryFrom<XesIntermediate> for Log {
                 XesComponent::Global(global) => meta.globals.push(global),
                 XesComponent::ClassifierDecl(classifier) => meta.classifiers.push(classifier),
                 XesComponent::Attribute(attribute) => {
-                    meta.attributes.insert(attribute.key, attribute.value);
+                    meta.attributes.insert(attribute);
                 }
                 XesComponent::Trace(trace) => traces.push(trace),
                 XesComponent::Event(event) => events.push(event),
@@ -612,7 +616,7 @@ impl<R: io::BufRead> XesReader<R> {
                 }
                 XesComponent::Attribute(attribute) => {
                     if let Some(meta) = &mut self.meta {
-                        meta.attributes.insert(attribute.key, attribute.value);
+                        meta.attributes.insert(attribute);
                     } else {
                         return Err(Error::StateError(format!("unexpected: {:?}", attribute)));
                     }
@@ -752,7 +756,7 @@ impl<W: io::Write + Send> Sink for XesWriter<W> {
         let mut event = QxBytesStart::owned(tag.to_vec(), tag.len());
 
         event.push_attribute(("xes.version", "1849.2016"));
-        event.push_attribute(("xes.features", ""));
+        event.push_attribute(("xes.features", "nested-attributes"));
 
         self.writer.write_event(QxEvent::Start(event))?;
 
@@ -808,6 +812,7 @@ impl PluginProvider for XesPluginProvider {
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         let path = parameters
                             .acquire_attribute("path")?
+                            .value
                             .try_string()?
                             .to_string();
                         let file = File::open(&Path::new(&path))
@@ -823,10 +828,11 @@ impl PluginProvider for XesPluginProvider {
                 Factory::new(
                     Declaration::default()
                         .attribute("path", "Location of the XES file")
-                        .default_attr("indent", "Indentation", || 0.into()),
+                        .default_attr("indent", "Indentation", |n| (n, 0).into()),
                     FactoryType::Sink(Box::new(|parameters| -> Result<Box<dyn Sink>> {
                         let path = parameters
                             .acquire_attribute("path")?
+                            .value
                             .try_string()?
                             .to_string();
                         let file = File::create(&Path::new(&path))
@@ -834,6 +840,7 @@ impl PluginProvider for XesPluginProvider {
                         let writer = BufWriter::new(file);
                         let indent = parameters
                             .acquire_attribute("indent")?
+                            .value
                             .try_int()
                             .map(|v| *v as usize)?;
                         Ok(Box::new(if indent > 0 {

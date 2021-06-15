@@ -2,10 +2,10 @@
 use regex::Regex;
 
 use crate::error::{Error, Result};
-use crate::stream::extension::{Attributes, Extension};
+use crate::stream::extension::Extension;
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ComponentType, Meta};
+use crate::stream::{AttributeContainer, ComponentType, Meta};
 
 #[derive(Debug)]
 pub enum ConceptKey {
@@ -24,7 +24,7 @@ impl<'a> Extension<'a> for Concept<'a> {
     const PREFIX: &'static str = "concept";
     const URI: &'static str = "http://www.xes-standard.org/concept.xesext";
 
-    fn view<T: Attributes + ?Sized>(component: &'a T) -> Result<Self> {
+    fn view<T: AttributeContainer + ?Sized>(component: &'a T) -> Result<Self> {
         let mut concept = Concept {
             name: None,
             instance: None,
@@ -32,13 +32,13 @@ impl<'a> Extension<'a> for Concept<'a> {
         };
 
         // extract name
-        if let Some(name) = component.get("concept:name") {
+        if let Some(name) = component.get_value("concept:name") {
             concept.name = Some(name.try_string()?)
         }
 
         // extract instance
         if ComponentType::Event == concept.origin {
-            if let Some(instance) = component.get("concept:instance") {
+            if let Some(instance) = component.get_value("concept:instance") {
                 concept.instance = Some(instance.try_string()?)
             }
         }
@@ -68,7 +68,7 @@ impl Concept<'_> {
     }
 
     /// Condition factory that returns a function which checks if a concept equals the given value
-    pub fn filter_eq<'a, T: 'a + Attributes>(
+    pub fn filter_eq<'a, T: 'a + AttributeContainer>(
         key: &'a ConceptKey,
         value: &'a str,
     ) -> Condition<'a, T> {
@@ -79,7 +79,7 @@ impl Concept<'_> {
     }
 
     /// Condition factory that returns a function which checks if a concept value is in the given list
-    pub fn filter_in<'a, T: 'a + Attributes>(
+    pub fn filter_in<'a, T: 'a + AttributeContainer>(
         key: &'a ConceptKey,
         values: &'a [&str],
     ) -> Condition<'a, T> {
@@ -90,7 +90,7 @@ impl Concept<'_> {
     }
 
     /// Condition factory that returns a function which checks if a concept matches given regex
-    pub fn filter_match<'a, T: 'a + Attributes>(
+    pub fn filter_match<'a, T: 'a + AttributeContainer>(
         key: &'a ConceptKey,
         pattern: &'a Regex,
     ) -> Condition<'a, T> {

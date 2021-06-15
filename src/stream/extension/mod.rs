@@ -20,7 +20,7 @@ pub use organizational::Org;
 pub use time::Time;
 
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{Attributes, ExtensionDecl, Meta};
+use crate::stream::{AttributeContainer, ExtensionDecl, Meta};
 use crate::{Error, Result};
 
 pub mod concept;
@@ -127,7 +127,7 @@ pub trait Extension<'a> {
     const URI: &'static str;
 
     /// Get a extension specific view on a viewable (Meta, Trace, Event etc.)
-    fn view<T: Attributes + ?Sized>(view: &'a T) -> Result<Self>
+    fn view<T: AttributeContainer + ?Sized>(view: &'a T) -> Result<Self>
     where
         Self: Sized;
 

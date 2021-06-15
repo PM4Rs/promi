@@ -1,10 +1,8 @@
 //! Filtering event streams.
 
 use crate::error::Result;
-use crate::stream::{
-    observer::{Handler, Observer},
-    Attributes, Event, Stream, Trace,
-};
+use crate::stream::observer::{Handler, Observer};
+use crate::stream::{AttributeContainer, Event, Stream, Trace};
 
 /// A condition aka filter function maps any item to a boolean value
 pub type Condition<'a, T> = Box<dyn Fn(&T) -> Result<bool> + 'a + Send>;
@@ -55,17 +53,17 @@ impl<'a> Handler for Filter<'a> {
 }
 
 /// Create pseudo filter function that returns always the same value
-pub fn pseudo_filter<'a, T: 'a + Attributes>(value: bool) -> Condition<'a, T> {
+pub fn pseudo_filter<'a, T: 'a + AttributeContainer>(value: bool) -> Condition<'a, T> {
     Box::new(move |_x: &T| Ok(value))
 }
 
 /// Create a filter function that inverts the given filter function
-pub fn neg<'a, T: 'a + Attributes>(function: Condition<'a, T>) -> Condition<'a, T> {
+pub fn neg<'a, T: 'a + AttributeContainer>(function: Condition<'a, T>) -> Condition<'a, T> {
     Box::new(move |x: &T| Ok(!function(x)?))
 }
 
 /// Create a filter function that inverts the given filter function
-pub fn drop_err<'a, T: 'a + Attributes>(function: Condition<'a, T>) -> Condition<'a, T> {
+pub fn drop_err<'a, T: 'a + AttributeContainer>(function: Condition<'a, T>) -> Condition<'a, T> {
     Box::new(move |x: &T| Ok(function(x).unwrap_or(false)))
 }
 
@@ -121,7 +119,7 @@ pub mod tests {
 
     use super::*;
 
-    pub type TokenMapper = Box<dyn Fn(&dyn Attributes) -> Result<String> + Send>;
+    pub type TokenMapper = Box<dyn Fn(&dyn AttributeContainer) -> Result<String> + Send>;
 
     pub struct Sequencer {
         token_mapper: TokenMapper,
@@ -145,7 +143,7 @@ pub mod tests {
         /// The default Sequencer uses the `concept:name` attribute as token
         fn default() -> Self {
             Self::new(Box::new(|component| {
-                Ok(match component.get("concept:name") {
+                Ok(match component.get_value("concept:name") {
                     Some(name) => name.try_string()?,
                     None => "?",
                 }

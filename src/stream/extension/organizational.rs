@@ -2,10 +2,10 @@
 use regex::Regex;
 
 use crate::error::{Error, Result};
-use crate::stream::extension::{Attributes, Extension};
+use crate::stream::extension::Extension;
 use crate::stream::filter::Condition;
 use crate::stream::validator::ValidatorFn;
-use crate::stream::{ComponentType, Meta};
+use crate::stream::{AttributeContainer, ComponentType, Meta};
 
 #[derive(Debug)]
 pub enum OrgKey {
@@ -26,7 +26,7 @@ impl<'a> Extension<'a> for Org<'a> {
     const PREFIX: &'static str = "org";
     const URI: &'static str = "http://www.xes-standard.org/org.xesext";
 
-    fn view<T: Attributes + ?Sized>(component: &'a T) -> Result<Self> {
+    fn view<T: AttributeContainer + ?Sized>(component: &'a T) -> Result<Self> {
         let mut org = Org {
             resource: None,
             role: None,
@@ -37,17 +37,17 @@ impl<'a> Extension<'a> for Org<'a> {
         // only events are supported
         if ComponentType::Event == org.origin {
             // extract resource
-            if let Some(name) = component.get("org:resource") {
+            if let Some(name) = component.get_value("org:resource") {
                 org.resource = Some(name.try_string()?)
             }
 
             // extract role
-            if let Some(name) = component.get("org:role") {
+            if let Some(name) = component.get_value("org:role") {
                 org.role = Some(name.try_string()?)
             }
 
             // extract group
-            if let Some(name) = component.get("org:group") {
+            if let Some(name) = component.get_value("org:group") {
                 org.group = Some(name.try_string()?)
             }
         }
@@ -79,7 +79,10 @@ impl Org<'_> {
     }
 
     /// Condition factory that returns a function which checks if an org equals the given value
-    pub fn filter_eq<'a, T: 'a + Attributes>(key: &'a OrgKey, value: &'a str) -> Condition<'a, T> {
+    pub fn filter_eq<'a, T: 'a + AttributeContainer>(
+        key: &'a OrgKey,
+        value: &'a str,
+    ) -> Condition<'a, T> {
         Box::new(move |x: &T| match Org::view(x)?.by_key(key) {
             Some(value_) => Ok(value_ == value),
             None => Err(Error::AttributeError(format!("{:?} is not defined", key))),
@@ -87,7 +90,7 @@ impl Org<'_> {
     }
 
     /// Condition factory that returns a function which checks if an org value is in the given list
-    pub fn filter_in<'a, T: 'a + Attributes>(
+    pub fn filter_in<'a, T: 'a + AttributeContainer>(
         key: &'a OrgKey,
         values: &'a [&str],
     ) -> Condition<'a, T> {
@@ -98,7 +101,7 @@ impl Org<'_> {
     }
 
     /// Condition factory that returns a function which checks if an org matches given regex
-    pub fn filter_match<'a, T: 'a + Attributes>(
+    pub fn filter_match<'a, T: 'a + AttributeContainer>(
         key: &'a OrgKey,
         pattern: &'a Regex,
     ) -> Condition<'a, T> {
@@ -154,7 +157,7 @@ pub mod tests {
                 ],
             ],
             "[BC][D][][][][]",
-            Some(Box::new(|component: &dyn Attributes| {
+            Some(Box::new(|component: &dyn AttributeContainer| {
                 Ok(Org::view(component)
                     .unwrap()
                     .resource
@@ -180,7 +183,7 @@ pub mod tests {
                 ))],
             ],
             "[][23][][][][]",
-            Some(Box::new(|component: &dyn Attributes| {
+            Some(Box::new(|component: &dyn AttributeContainer| {
                 Ok(Org::view(component)
                     .unwrap()
                     .role

@@ -101,16 +101,16 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                         .stream("inner", "The stream to be split")
                         .sink("sink", "The sink that consumes one part of the stream")
                         .attribute("ratio", "Share of events/traces that are kept")
-                        .default_attr("seed", "Optional seed", || {
-                            Utc::now().timestamp_nanos().into()
+                        .default_attr("seed", "Optional seed", |k| {
+                            (k, Utc::now().timestamp_nanos()).into()
                         }),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,
                             parameters.acquire_sink("sink")?,
-                            *parameters.acquire_attribute("ratio")?.try_float()?,
+                            *parameters.acquire_attribute("ratio")?.value.try_float()?,
                             match parameters.acquire_attribute("seed") {
-                                Ok(s) => Some(*(s.try_int()?) as u128),
+                                Ok(s) => Some(*(s.value.try_int()?) as u128),
                                 _ => None,
                             },
                         )
@@ -125,16 +125,16 @@ impl PluginProvider for Split<Box<dyn Stream>, Box<dyn Sink>> {
                     Declaration::default()
                         .stream("inner", "The stream to be sampled from")
                         .attribute("ratio", "Share of events/traces that are sampled")
-                        .default_attr("seed", "Optional seed", || {
-                            Utc::now().timestamp_nanos().into()
+                        .default_attr("seed", "Optional seed", |k| {
+                            (k, Utc::now().timestamp_nanos()).into()
                         }),
                     FactoryType::Stream(Box::new(|parameters| -> Result<Box<dyn Stream>> {
                         Ok(Split::new(
                             parameters.acquire_stream("inner")?,
                             Void::default(),
-                            *parameters.acquire_attribute("ratio")?.try_float()?,
+                            *parameters.acquire_attribute("ratio")?.value.try_float()?,
                             match parameters.acquire_attribute("seed") {
-                                Ok(s) => Some(*(s.try_int()?) as u128),
+                                Ok(s) => Some(*(s.value.try_int()?) as u128),
                                 _ => None,
                             },
                         )

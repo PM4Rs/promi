@@ -10,10 +10,10 @@ use crate::stream::extension::REGISTRY;
 use crate::stream::observer::{Handler, Observer};
 use crate::stream::plugin::{Declaration, Entry, Factory, FactoryType, PluginProvider};
 use crate::stream::xml_util::CRE_NCNAME;
-use crate::stream::{Attributes, Event, Meta, Scope, Stream, Trace};
+use crate::stream::{AttributeContainer, Event, Meta, Scope, Stream, Trace};
 use crate::{Error, Result};
 
-pub type ValidatorFn = Box<dyn Fn(Box<&dyn Attributes>) -> Result<()> + Send>;
+pub type ValidatorFn = Box<dyn Fn(Box<&dyn AttributeContainer>) -> Result<()> + Send>;
 
 /// Container for validator functions
 pub struct Validator {

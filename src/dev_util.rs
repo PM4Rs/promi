@@ -3,8 +3,10 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::panic;
 use std::path::Path;
 use std::sync::{Mutex, Once};
+use std::thread;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -170,6 +172,29 @@ pub fn load_example(path: &[&str]) -> Buffer {
     cache.get(key).unwrap().clone()
 }
 
+/// Relax a test case by allowing up to `n` failures
+#[allow(clippy::panicking_unwrap)]
+pub fn retry_up_to<T>(n: usize, test: T)
+where
+    T: Fn() + panic::UnwindSafe + panic::RefUnwindSafe,
+{
+    let mut failures: usize = 0;
+
+    for _ in 0.. {
+        let result: thread::Result<()> = panic::catch_unwind(|| test());
+
+        if result.is_ok() {
+            return;
+        }
+
+        failures += 1;
+
+        if failures >= n {
+            result.unwrap();
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use crate::stream::void::consume;
@@ -197,5 +222,16 @@ pub mod tests {
             Err(Error::ArtifactError(_)) => (),
             other => panic!("expected artifact error, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_pass_m_of_n_success() {
+        retry_up_to(1, || ());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_pass_m_of_n_failure() {
+        retry_up_to(3, || panic!("ooops"));
     }
 }

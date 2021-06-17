@@ -65,21 +65,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::thread::sleep;
+    use std::thread;
+
+    use crate::dev_util::retry_up_to;
 
     use super::*;
 
     #[test]
     fn test_timeit() {
-        let (duration, _) = timeit(|| sleep(Duration::from_secs_f32(1e-3)));
-        assert!(is_close!(duration.as_secs_f32(), 1e-3, abs_tol = 1e-4));
+        retry_up_to(3, || {
+            let (duration, _) = timeit(|| thread::sleep(Duration::from_secs_f32(1e-3)));
+            assert!(is_close!(duration.as_secs_f32(), 1e-3, abs_tol = 1e-4));
 
-        let (duration, _) = timeit(|| sleep(Duration::from_secs_f32(1e-2)));
-        assert!(is_close!(duration.as_secs_f32(), 1e-2, abs_tol = 1e-3));
+            let (duration, _) = timeit(|| thread::sleep(Duration::from_secs_f32(1e-2)));
+            assert!(is_close!(duration.as_secs_f32(), 1e-2, abs_tol = 1e-3));
 
-        let (duration, value) = timeit(|| 42);
-        assert!(is_close!(duration.as_secs_f32(), 0., abs_tol = 1e-5));
-        assert_eq!(value, 42);
+            let (duration, value) = timeit(|| 42);
+            assert!(is_close!(duration.as_secs_f32(), 0., abs_tol = 1e-5));
+            assert_eq!(value, 42);
+        });
     }
 
     #[test]
